@@ -2,3 +2,5 @@
 *.swp
 *~
 SAD3.cabal
+provers/eprover
+.DS_Store
