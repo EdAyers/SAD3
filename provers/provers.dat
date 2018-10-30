@@ -1,9 +1,9 @@
 ## Alice's provers
-
+## [TODO] how do you edit this file?
 Peprover
 LEprover
 Ftptp
-Ceprover --auto -s --cpu-limit=%d
+Cprovers/eprover --auto -s --cpu-limit=%d
 Y# SZS status Theorem
 N# SZS status CounterSatisfiable
 U# SZS status ResourceOut
