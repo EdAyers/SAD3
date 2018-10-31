@@ -34,9 +34,12 @@ import Debug.Trace
 
 -- definitions and signature extensions
 
+defExtend :: FTL Formula
 defExtend = def_predicat -|- def_notion
+sigExtend :: FTL Formula
 sigExtend = sig_predicat -|- sig_notion
 
+def_predicat :: FTL Formula
 def_predicat = do
   (f, g) <- wellFormedCheck prdVars defn
   return $ Iff (Tag DHD f) g
@@ -44,6 +47,7 @@ def_predicat = do
     defn  = do f <- new_predicat; equiv; g <- statement; return (f,g)
     equiv = iff <|> symbol "<=>"
 
+def_notion :: FTL Formula
 def_notion = do
   ((n,h),u) <- wellFormedCheck (ntnVars . fst) defn
   return $ zAll u $ Iff (Tag DHD n) h
@@ -60,6 +64,7 @@ def_notion = do
 
 
 
+sig_predicat :: FTL Formula
 sig_predicat = do
   (f,g) <- wellFormedCheck prdVars sig
   return $ Imp (Tag DHD f) g
@@ -69,6 +74,7 @@ sig_predicat = do
     noInfo = art >> wd_tokenOf ["atom", "relation"] >> return Top
 
 
+sig_notion :: FTL Formula
 sig_notion = do
   ((n,h),u) <- wellFormedCheck (ntnVars . fst) sig
   return $ zAll u $ Imp (Tag DHD n) h
@@ -83,8 +89,10 @@ sig_notion = do
       art >> wd_tokenOf ["notion", "function", "constant"] >> return (id,Top)
     trm Trm {trName = "=", trArgs = [_,t]} = t; trm t = t
 
+new_predicat :: FTL Formula
 new_predicat = do n <- new_prd_pattern nvr; MS.get >>= addExpr n n True
 
+new_notion :: FTL (Formula, String)
 new_notion = do
   (n, u) <- new_ntn_pattern nvr;
   f <- MS.get >>= addExpr n n True
@@ -118,6 +126,7 @@ prdVars (f, d) | not flat  = return $ "compound expression: " ++ show f
     flat      = isTrm f && allDistinctVars (trArgs f)
 
 
+allDistinctVars :: [Formula] -> Bool
 allDistinctVars = disVs []
   where
     disVs ls (Var v@('h':_) _ : vs)  = notElem v ls && disVs (v:ls) vs
@@ -130,9 +139,11 @@ allDistinctVars = disVs []
 --- introduce synonyms
 
 
+nonLogicalLanguageExt :: FTL ()
 nonLogicalLanguageExt =
   introduceSynonym </> pretypeVariable </> introduceMacro
 
+introduceSynonym :: FTL ()
 introduceSynonym = sym >>= MS.modify . upd >> return ()
   where
     upd ss st = st { str_syms = ss : str_syms st }
@@ -144,6 +155,7 @@ introduceSynonym = sym >>= MS.modify . upd >> return ()
     sfx w = sm_token "-" >> liftM (w ++) word
 
 
+pretypeVariable :: FTL ()
 pretypeVariable = narrow typeVar >>= MS.modify . upd >> return ()
   where
     typeVar = do
@@ -156,6 +168,7 @@ pretypeVariable = narrow typeVar >>= MS.modify . upd >> return ()
     upd tv st = st { tvr_expr = tv : tvr_expr st }
 
 
+introduceMacro :: FTL ()
 introduceMacro = do
   (f, g) <- wd_token "let" >> narrow (prd -|- ntn)
   MS.get >>= addExpr f (ignoreNames g) False
@@ -169,6 +182,7 @@ introduceMacro = do
       (q, f) <- standFor >> dot anotion
       h <- liftM q $ dig f [zVar u]; return (n, h)
 
+ignoreNames :: Formula -> Formula
 ignoreNames (All _ f) = All "" $ ignoreNames f
 ignoreNames (Exi _ f) = Exi "" $ ignoreNames f
 ignoreNames f@Trm{}   = f

@@ -16,17 +16,19 @@ import Alice.Data.Instr (Instr, Idrop)
 
 data Text = TB Block | TI Instr | TD Idrop
 
+{-- A block is a chunk of text. For example a `Theorem` or `Signature` block.
+-}
 data Block  = Block {
   formula           :: Formula,
-  body              :: [Text],
-  kind              :: Section,
+  body              :: [Text], -- [TODO]
+  kind              :: Section, 
   declaredVariables :: [String],
   name              :: String,
   link              :: [String],
-  position          :: SourcePos,
-  text              :: String }
+  position          :: SourcePos, -- position in the sourcetext file.
+  text              :: String } -- the sourcetext that was parsed to this block?
 
-{- All possible types that a ForThel block can have. -}
+{- All possible types that a ForTheL block can have. -}
 data Section =
   Definition | Signature | Axiom       | Theorem | CaseHypothesis  |
   Assumption | Selection | Affirmation | Posit   | LowDefinition

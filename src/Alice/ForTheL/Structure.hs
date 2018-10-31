@@ -41,6 +41,7 @@ forthel = section <|> macroOrPretype <|> bracketExpression
    memory leaks. The problem is that we cannnot distinguish in an LL1 fashion
    between instructions and synonym introductions.-}
 
+bracketExpression :: FTL [Text]
 bracketExpression = exit </> readfile </> do
   mbInstr <- liftM Left instruction </> liftM Right introduceSynonym
   either (\instr -> liftM ((:) instr) forthel) (\_ -> forthel) mbInstr
@@ -49,10 +50,12 @@ bracketExpression = exit </> readfile </> do
     readfile = liftM2 ((:) . TI) iRead (return [])
     instruction = liftM TD iDrop </> liftM TI instr
 
+topsection :: FTL Block
 topsection = signature <|> definition <|> axiom <|> theorem
 
 --- generic topsection parsing
 
+genericTopsection :: Section -> FTL String -> FTL [Text] -> FTL Block
 genericTopsection kind header endparser = do
   pos <- getPos; inp <- getInput; nm <- header;
   txt <- getText inp; bs <- body
@@ -64,11 +67,13 @@ genericTopsection kind header endparser = do
 
 --- generic header parser
 
+header :: [String] -> FTL String
 header titles = dot $ wd_tokenOf titles >> optLL1 "" topIdentifier
 
 
 -- topsections
 
+signature :: FTL Block
 signature =
   let sigext = pretype $ pretypeSentence Posit sigExtend defVars noLink
   in  genericTopsection Signature sigH sigext
@@ -84,6 +89,7 @@ theorem =
   in  genericTopsection Theorem thmH (topProof topAffirm)
     
 
+sigH, defH, axmH, thmH :: FTL String
 sigH = header ["signature"]
 defH = header ["definition"]
 axmH = header ["axiom"]
@@ -91,6 +97,7 @@ thmH = header ["theorem", "lemma", "corollary", "proposition"]
 
 
 -- low-level
+choose, caseHypo, affirm, assume, llDefn :: FTL Block
 choose   = sentence Selection (chsH >> selection) assumeVars link
 caseHypo = sentence CaseHypothesis   (casH >> statement) affirmVars link
 affirm   = sentence Affirmation (affH >> statement) affirmVars link </> eqChain
@@ -98,20 +105,25 @@ assume   = sentence Assumption (asmH >> statement) assumeVars noLink
 llDefn   = sentence LowDefinition(ldfH >> setNotion </> functionNotion)     llDefnVars noLink
 
 -- Links and Identifiers
+link :: FTL [String]
 link = dot eqLink
   where
     identifiers = topIdentifier `sepByLL1` comma
 
+topIdentifier :: FTL String
 topIdentifier = tokenPrim notSymb
   where
     notSymb t = case showToken t of
       [c] -> guard (isAlphaNum c) >> return [c]
       tk  -> return tk
 
+lowIdentifier :: FTL String
 lowIdentifier = expar topIdentifier
 
+noLink :: FTL [a]
 noLink = dot $ return []
 
+eqLink :: FTL [String]
 eqLink = optLL1 [] $ expar $ wd_token "by" >> identifiers
   where
     identifiers = topIdentifier `sepByLL1` comma
@@ -146,9 +158,9 @@ pretype p = p `pretypeBefore` return []
 
 
 -- low-level header
+hence, letUs, chsH, casH, affH, asmH, ldfH :: FTL ()
 hence = optLL1 () $ wd_tokenOf ["then", "hence", "thus", "therefore"]
 letUs = optLL1 () $ (wd_token "let" >> wd_token "us") <|> (wd_token "we" >> wd_token "can")
-
 chsH = hence >> letUs >> wd_tokenOf ["choose", "take", "consider"]
 casH = wd_token "case"
 affH = hence
@@ -160,6 +172,7 @@ ldfH = wd_token "define"
 
 -- generic sentence parser
 
+statementBlock :: Section -> FTL Formula -> FTL [String] -> FTL Block
 statementBlock kind p mbLink = do
   nm <- opt "__" lowIdentifier;
   pos <- getPos; inp <- getInput;
@@ -168,6 +181,7 @@ statementBlock kind p mbLink = do
   return $ Block fr [] kind [] nm link pos txt
 
 
+pretypeSentence :: Section -> FTL Formula -> ([String] -> Formula -> Maybe String) -> FTL [String] -> FTL Block
 pretypeSentence kind p wfVars mbLink = narrow $ do
   dvs <- getDecl; tvr <- liftM (concatMap fst) getPretyped
   bl <- wellFormedCheck (wf dvs tvr) $ statementBlock kind p mbLink
@@ -177,6 +191,7 @@ pretypeSentence kind p wfVars mbLink = narrow $ do
       let fr = formula bl; nvs = intersect tvr $ free dvs fr
       in  wfVars (nvs ++ dvs) fr
 
+sentence :: Section -> FTL Formula -> ([String] -> Formula -> Maybe String) -> FTL [String] -> FTL Block
 sentence kind p wfVars mbLink = do
   dvs <- getDecl;
   bl  <- wellFormedCheck (wfVars dvs . formula) $ statementBlock kind p mbLink
@@ -210,15 +225,18 @@ affirmVars dvs f = overfree dvs f
 
 data Scheme = None | Short | Raw | InS | InT Formula deriving Show
 
+preMethod :: FTL Scheme
 preMethod  = optLLx None $ letUs >> dem >> after method that
   where
     dem = wd_tokenOf ["prove", "show", "demonstrate"]
 
+postMethod :: FTL Scheme
 postMethod = optLL1 None $ short <|> explicit
   where
     short    = wd_token "indeed" >> return Short
     explicit = dot $ wd_token "proof"  >> method
 
+method :: FTL Scheme
 method = optLL1 Raw $ wd_token "by" >> (contradict <|> cases <|> induction)
   where
     contradict = wd_token "contradiction" >> return Raw
@@ -228,6 +246,7 @@ method = optLL1 Raw $ wd_token "by" >> (contradict <|> cases <|> induction)
 
 --- creation of induction thesis
 
+indThesis :: Formula -> Scheme -> Scheme -> FTL Formula
 indThesis fr pre post = do
   it <- indScheme pre post >>= indTerm fr; dvs <- getDecl
   indFormula (free dvs it) it fr
@@ -255,6 +274,7 @@ indThesis fr pre post = do
 
 -- proof initiation
 
+proof :: FTL Block -> FTL Block
 proof p = do
   pre <- preMethod; bl <- p; post <- postMethod;
   nf <- indThesis (formula bl) pre post
@@ -262,6 +282,7 @@ proof p = do
 
 
 
+topProof :: FTL Block -> FTL [Text]
 topProof p = do
   pre <- preMethod; bl <- p; post <- postMethod; typeBlock <- pretyping bl;
   let pretyped = declaredVariables typeBlock
@@ -278,14 +299,17 @@ addBody _ _       = proofBody    -- a full proof was given
 
 -- proof texts
 
+proofSentence :: Block -> FTL Block
 proofSentence bl = do
   pbl <- narrow assume </> proof (narrow $ affirm </> choose) </> narrow llDefn
   return bl {body = [TB pbl]}
 
+proofBody :: Block -> FTL Block
 proofBody bl = do
   bs <- proofText; ls <- link
   return bl {body = bs, Block.link = ls ++ Block.link bl}
 
+proofText :: FTL [Text]
 proofText = assume_affirm_choose_lldefine <|> caseText <|> qed <|> llInstr
   where
     assume_affirm_choose_lldefine =
@@ -293,6 +317,7 @@ proofText = assume_affirm_choose_lldefine <|> caseText <|> qed <|> llInstr
     qed = wd_tokenOf ["qed", "end", "trivial", "obvious"] >> return []
     llInstr = liftM2 (:) (liftM TI instr </> liftM TD iDrop) proofText
 
+caseText :: FTL [Text]
 caseText = caseD
   where
     caseChain = caseD <|> qed
@@ -306,6 +331,7 @@ caseText = caseD
 
 -- equality Chain
 
+eqChain :: FTL Block
 eqChain = do
   dvs <- getDecl; nm <- opt "__" lowIdentifier; pos <- getPos; inp <- getInput
   body <- wellFormedCheck (chainVars dvs) $ s_term >>= nextTerm
@@ -318,6 +344,7 @@ eqChain = do
     chainVars dvs = affirmVars dvs . foldl1 And . map formula
 
 
+eq_tail :: Formula -> FTL [Block]
 eq_tail t = nextTerm t </> (sm_token "." >> return [])
 
 nextTerm :: Formula -> FTL [Block]

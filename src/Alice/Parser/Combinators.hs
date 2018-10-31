@@ -63,7 +63,7 @@ infixr 2 -|-
         in  runParser n st nok ncerr neerr
   in  runParser m st mok mcerr meerr
 
------- ambigous parsing applied ot a list of parsers
+-- | ambiguous parsing applied ot a list of parsers
 tryAll :: [Parser st a] -> Parser st a
 tryAll [] = mzero
 tryAll (p:ps) = p -|- tryAll ps
@@ -76,7 +76,7 @@ tryAll (p:ps) = p -|- tryAll ps
 sepBy :: Parser st a -> Parser st sep -> Parser st [a]
 sepBy p sep = liftM2 (:) p $ opt [] $ sep >> sepBy p sep
 
-
+{-| `sepByLL1 p s` parses a list of `p`s separated by `s`. -}
 sepByLL1 :: Parser st a -> Parser st sep -> Parser st [a]
 sepByLL1 p sep = liftM2 (:) p $ optLL1 [] $ sep >> sepByLL1 p sep
 
@@ -107,24 +107,24 @@ chainLL1 p = liftM2 (:) p $ optLL1 [] $ chainLL1 p
 after :: Parser st a -> Parser st b -> Parser st a
 after a b = a >>= ((b >>) . return)
 
----- mandatory parentheses, brackets, braces
+-- | mandatory parentheses, brackets, braces
 expar, exbrk, exbrc :: Parser st a -> Parser st a
 expar p = wd_token "(" >> after p (wd_token ")")
 exbrk p = wd_token "[" >> after p (wd_token "]")
 exbrc p = wd_token "{" >> after p (wd_token "}")
 
----- optional parentheses
+{-- optional parentheses `paren[p] ::= p | ("(" p ")")` -} 
 paren :: Parser st a -> Parser st a
 paren p = p -|- expar p
 
----- mandatory finishing dot
+{-- mandatory finishing dot. `dot[p] ::= p "."` -}
 dot :: Parser st a -> Parser st a
 dot p = after p $ (wd_token "." <?> "a dot")
 
 
 -- Control ambiguity
 
----- if p is ambiguos, fail and report a well-formedness error
+-- | if p is ambiguous, fail and report a well-formedness error
 narrow :: Show a => Parser st a -> Parser st a
 narrow p = Parser $ \st ok cerr eerr ->
   let pok err eok cok = case eok ++ cok of
@@ -133,7 +133,7 @@ narrow p = Parser $ \st ok cerr eerr ->
   in  runParser p st pok cerr eerr
 
 
----- only take the longest possible parse, discard all others
+-- | only take the longest possible parse, discard all others
 takeLongest :: Parser st a -> Parser st a
 takeLongest p = Parser $ \st ok cerr eerr ->
   let pok err eok cok
@@ -154,7 +154,7 @@ takeLongest p = Parser $ \st ok cerr eerr ->
 
 -- Deny parses
 
----- fail if p succeeds
+-- | fail if p succeeds
 failing :: Parser st a -> Parser st ()
 failing p = Parser $ \st ok cerr eerr ->
   let pok err eok _ =
@@ -193,13 +193,13 @@ label msg p = p <?> msg
 
 -- Control error messages
 
----- fail with a well-formedness error
+-- | fail with a well-formedness error
 failWF :: String -> Parser st a
 failWF msg = Parser $ \st _ _ eerr ->
   eerr $ newErrorMessage (newWfMsg [msg]) (stPosi st)
 
 
----- do not produce an error message
+-- | do not produce an error message
 noError :: Parser st a -> Parser st a
 noError p = Parser $ \st ok cerr eerr ->
   let pok   err = ok   $ newErrorUnknown (stPosi st)
@@ -208,7 +208,7 @@ noError p = Parser $ \st ok cerr eerr ->
   in  runParser p st pok pcerr peerr
 
 
----- parse and perform a well-formedness check on the result
+-- | parse and perform a well-formedness check on the result
 wellFormedCheck :: (a -> Maybe String) -> Parser st a -> Parser st a
 wellFormedCheck check p = Parser $ \st ok cerr eerr ->
   let pos = stPosi st
@@ -226,8 +226,8 @@ wellFormedCheck check p = Parser $ \st ok cerr eerr ->
 
 
 
----- parse and perform a check on the result; report errors as normal errors
----- and not as well-formedness errors
+-- | parse and perform a check on the result; report errors as normal errors
+-- and not as well-formedness errors
 lexicalCheck :: (a -> Bool) -> Parser st a -> Parser st a
 lexicalCheck check p = Parser $ \st ok cerr eerr ->
   let pok err eok cok =
@@ -243,8 +243,8 @@ lexicalCheck check p = Parser $ \st ok cerr eerr ->
       in  unwords . map showToken . takeWhile ((>=) pos . tokenPos) . stInput
 
 
----- in case of failure report every consumed token as unexpected instead of
----- just the first
+-- | in case of failure report every consumed token as unexpected instead of
+-- just the first
 unexpectedUnit :: Parser st a -> Parser st a
 unexpectedUnit p = Parser $ \st ok cerr eerr ->
   let pcerr err = cerr $ unexpectError (unit err st) (stPosi st)

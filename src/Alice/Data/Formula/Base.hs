@@ -13,17 +13,29 @@ import qualified Data.IntMap.Strict as IM
 
 import Alice.Data.Tag (Tag)
 
-
 data Formula =
-  All String  Formula   | Exi String  Formula     |
-  Iff Formula Formula   | Imp Formula Formula     |
-  Or  Formula Formula   | And Formula Formula     |
-  Tag Tag Formula       | Not Formula             |
-  Top                   | Bot                     |
-  Trm { trName :: String   , trArgs :: [Formula],
-        trInfo :: [Formula], trId   :: Int}       |
-  Var { trName :: String   , trInfo :: [Formula] }|
-  Ind { trIndx :: Int } | ThisT
+    All String  Formula   
+  | Exi String  Formula     
+  | Iff Formula Formula   
+  | Imp Formula Formula     
+  | Or  Formula Formula   
+  | And Formula Formula     
+  | Tag Tag     Formula        -- [TODO] examples?
+  | Not Formula             
+  | Top                   
+  | Bot                     
+  | Trm 
+      { trName :: String    
+      , trArgs :: [Formula]  
+      , trInfo :: [Formula]  -- Attached properties of the given term.
+      , trId   :: Int        -- [TODO]
+      }       
+  | Var 
+    { trName :: String   
+    , trInfo :: [Formula] 
+    }
+  | Ind { trIndx :: Int } -- A de-Bruijn variable? [TODO]
+  | ThisT -- [TODO]
 
 
 -- Traversing functions

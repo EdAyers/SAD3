@@ -15,21 +15,19 @@ import Alice.ForTheL.Base
 import Alice.Parser.Base
 import Alice.Parser.Combinators
 import Alice.Parser.Primitives
-
 import Alice.Parser.Token
-
 import Alice.Data.Formula
-
-
 import Debug.Trace
 import qualified Control.Monad.State.Class as MS
 import Data.Function ((&))
-
-
 import Control.Monad
 
+{-- `statement ::= headed | chained` -}
+statement :: FTL Formula
 statement = headed <|> chained
 
+{-- headed ::= (qu_statem) | ("if" statement "then" statement) | ("it is wrong that " statement) -}
+headed :: FTL Formula
 headed = qu_statem <|> if_then_statem <|> wrong_statem
   where
     qu_statem      = liftM2 ($) qu_chain statement
@@ -37,7 +35,7 @@ headed = qu_statem <|> if_then_statem <|> wrong_statem
     wrong_statem   = mapM_ wd_token ["it", "is", "wrong", "that"] >> liftM Not statement
 
 
-
+chained :: FTL Formula
 chained = label "chained statement" $ andOr <|> neitherNor >>= chainEnd
   where
     andOr      = atomic >>= \f -> opt f (andChain f <|> orChain f)
@@ -52,7 +50,7 @@ chained = label "chained statement" $ andOr <|> neitherNor >>= chainEnd
       fs <- atomic `sepBy` wd_token "nor"
       return $ foldl1 And $ map Not (f:fs)
 
-
+chainEnd :: Formula -> FTL Formula
 chainEnd f = optLL1 f $ and_st <|> or_st <|> iff_st <|> where_st
   where
     and_st   = liftM (And f) $ wd_token "and" >> headed
@@ -60,28 +58,33 @@ chainEnd f = optLL1 f $ and_st <|> or_st <|> iff_st <|> where_st
     iff_st   = liftM (Iff f) $ iff            >> statement
     where_st = do wd_tokenOf ["when", "where"]; y <- statement
                   return $ foldr zAll (Imp y f) (decl [] y)
-
-
+{--
+`atomic ::= thereIs | simple | (wehve >> sm_form) | thesis`
+-}
+atomic :: FTL Formula
 atomic = label "atomic statement"
   thereIs <|> (simple </> (wehve >> sm_form <|> thesis))
   where
     wehve = optLL1 () $ wd_token "we" >> wd_token "have"
 
+{-- `thesis ::= ("" | "a" | "an" | "the") ("thesis" | "contrary" | "contradiction")` -}
+thesis :: FTL Formula
 thesis = art >> (thes <|> contrary <|> contradiction)
   where
     thes          = wd_token "thesis"        >> return zThesis
     contrary      = wd_token "contrary"      >> return (Not zThesis)
     contradiction = wd_token "contradiction" >> return Bot
-
+{--
+`thereIs ::= "there" ("is" | "exists" | "exist") (noNotion | notions)`
+-}
+thereIs :: FTL Formula  
 thereIs = there >> (noNotion -|- notions)
   where
     noNotion = do wd_token "no"; (q, f, vs) <- notion;
                   return $ Not $ foldr mbExi (q f) vs
     notions  = liftM multExi $ art >> notion `sepBy` comma
 
-
-
-
+simple :: FTL Formula
 simple = label "simple statement" $
   do (q, ts) <- terms; p <- conj_chain does_predicat;
       q' <- optLL1 id qu_chain;
@@ -89,11 +92,12 @@ simple = label "simple statement" $
       -- example: x = y *for every real number x*.
       liftM (q . q') $ dig p ts
 
+sm_form :: FTL Formula
 sm_form = liftM2 (flip ($)) (s_form -|- classEq) $ optLL1 id qu_chain
 
 --- predicates
 
-
+does_predicat :: FTL Formula
 does_predicat = label "does predicat" $
   (does >> (doP -|- m_doP)) <|> hasP <|> isChain
   where
@@ -102,7 +106,7 @@ does_predicat = label "does predicat" $
     hasP    = has >> has_predicat
     isChain = is  >> conj_chain (isA_predicat -|- is_predicat)
 
-
+is_predicat :: FTL Formula
 is_predicat = label "is predicat" $
   pAdj -|- p_m_Adj -|- (with >> has_predicat)
   where
@@ -139,24 +143,34 @@ has_predicat = label "has predicat" $
 
 --- predicat parsing
 
+{- How Digging works
+   When we write "suppose U V are open and pairwise disjoint", we attach the "DIG" tag to `open`
+   and the `DMP` tag to "pairwise disjoint".
+   These tags tell us that we must later copy the predicates appropriately across the variables `U` and `V`.
+   So we end up with something like this in FOL:
+   `assume U,V, even(U), even(V), disjoint(U,V). ...`
+   The DIG, DMS, DMP tags are essentially saying that there is unfinished business with transforming this term.
+-}
+predicat :: (FTL UTerm -> FTL UTerm) -> FTL Formula
 predicat p = (wd_token "not" >> negative) <|> positive
   where
     positive = do (q, f) <- p term; return $ q . Tag DIG $ f
     negative = do (q, f) <- p term; return $ q . Tag DIG . Not $ f
 
+-- A multipredicat is a predicat that can take multiple arguments
+-- Eg "lines X, Y are parallel", 'parallel' is a multipredicat. 
+-- As opposed to "numbers X Y are even", 'even' applies elementwise
+m_predicat :: (FTL UTerm -> FTL UTerm) -> FTL Formula
 m_predicat p = (wd_token "not" >> m_negative) <|> m_positive
   where
     m_positive = (wd_token "pairwise" >> p_positive) <|> s_positive
     -- we distinguish between *separate* and *pairwise*
-    s_positive = do (q, f) <- p term; return $ q . Tag DMS $ f
-    p_positive = do (q, f) <- p term; return $ q . Tag DMP $ f
+    s_positive = do (q, f) <- p term; return $ q . Tag DMS $ f -- DMS = multi-subject
+    p_positive = do (q, f) <- p term; return $ q . Tag DMP $ f -- DMP = multi-subject-pairwise
 
     m_negative = (wd_token "pairwise" >> p_negative) <|> s_negative
     s_negative = do (q, f) <- p term; return $ q . Tag DMS . Not $ f
     p_negative = do (q, f) <- p term; return $ q . Tag DMP . Not $ f
-
-
-
 
 --- notions
 
@@ -169,7 +183,7 @@ basentn = liftM digadd $ cm <|> sym_eqnt <|> (set </> prim_ntn term)
 
 sym_notion  =  (paren (prim_snt s_term) </> prim_tvr) >>= (digntn . digadd)
 
-
+-- Does the things common to both `anotion` and `notion`
 gnotion nt ra = do
   ls <- liftM reverse la; (q, f, vs) <- nt;
   rs <- opt [] $ liftM (:[]) $ ra <|> rc
@@ -180,18 +194,19 @@ gnotion nt ra = do
     lc  = predicat prim_un_adj </> m_predicat prim_m_un_adj
     rc  = (that >> conj_chain does_predicat <?> "that clause") <|> conj_chain is_predicat
 
-
+{-- a notion with an article. A notion that serves as a predicate eg "being a group".-}
 anotion =
   art >> (gnotion basentn rat <?> "notion (at most one name)") >>= single >>= hol
   where
     hol (q, f, v) = return (q, subst zHole v f)
-    rat = liftM (Tag DIG) stattr ---- why here Tag DIG??
+    rat = liftM (Tag DIG) stattr 
 
 notion  = label "notion" $ gnotion (basentn </> sym_notion) stattr >>= digntn
 
 possess = gnotion (prim_of_ntn term) stattr >>= digntn
 
-
+{-- stattr ::= ("such" | "so") "that" statement -}
+stattr :: FTL Formula
 stattr  =  such >> that >> statement
 
 digadd (q, f, v)  = (q, Tag DIG f, v)
@@ -216,12 +231,14 @@ term = label "a term" $ (qu_notion >>= m2s) -|- definite_term
     m2s (q, [t]) = return (q, t)
     m2s _ = fail "inadmissible multinamed notion"
 
-
+{-- `qu_notion ::= paren[(("every" | "each" | "all" | "any") notion) | ("some" notion) | ("no" notion)]`  -}
+qu_notion :: Parser FState (Formula -> Formula, [Formula])
 qu_notion = label "quantified notion" $
   paren (fa <|> ex <|> no)
   where
     fa = do
-      wd_tokenOf ["every", "each", "all", "any"]; (q, f, v) <- notion
+      wd_tokenOf ["every", "each", "all", "any"]; 
+      (q, f, v) <- notion
       return (q . flip (foldr zAll) v . blImp f, map zVar v)
 
     ex = do
@@ -288,7 +305,8 @@ s_atom = s_relation -|- expar statement
 s_term = i_term
   where
     i_term  = l_term >>= i_tl
-    i_tl t  = opt t $ (prim_ifn s_term `ap` return t `ap` i_term) >>= i_tl -- I'm pretty sure this second i_tl can never succeed... test this later
+    i_tl t  = opt t $ (prim_ifn s_term `ap` return t `ap` i_term) >>= i_tl 
+    -- I'm pretty sure this second i_tl can never succeed... test this later
 
     l_term  = r_term -|- (prim_lfn s_term `ap` l_term)
 
@@ -323,7 +341,7 @@ classEq = twoClassTerms </> oneClassTerm
 
 
 -- selection
-
+selection :: FTL Formula
 selection = liftM (foldl1 And) $ (art >> takeLongest namedNotion) `sepByLL1` comma
   where
     namedNotion = label "named notion" $ do
@@ -334,6 +352,7 @@ selection = liftM (foldl1 And) $ (art >> takeLongest namedNotion) `sepByLL1` com
 -- function and set syntax
 
 -- -- sets
+setNotion :: FTL Formula
 setNotion = do
   v <- after var (sm_token "="); (_, f, _) <- set
   dig (Tag DIG f) [zVar v]
@@ -350,6 +369,7 @@ set = symb_set <|> set_of
     setForm nm = And (zSet zHole) . zAll nm . Iff (zElem (zVar nm) zHole)
 
 
+symb_set_notation :: Parser FState (Formula -> Formula, String)
 symb_set_notation = cndSet </> finSet
   where
     finSet = exbrc $ do
@@ -364,6 +384,7 @@ symb_set_notation = cndSet </> finSet
     mbEqu vs tr t = \st -> foldr mbExi (st `And` zEqu tr t) vs
 
 
+sepFrom :: Parser FState (Formula -> Formula, Formula -> Formula, Formula)
 sepFrom = ntnSep -|- setSep -|- noSep
   where
     ntnSep = do
@@ -450,8 +471,13 @@ multExi [] = Top
 
 conj_chain = liftM (foldl1 And) . flip sepBy (wd_token "and")
 
-qu_chain  = liftM (foldl fld id) $ wd_token "for" >> qu_notion `sepByLL1` comma -- we can use LL1 here, since there must always follow
-  where                                                                       -- a parser belonging to the same non-terminal
+{--
+`qu_chain ::= "for" ((qu_notion (","|"and"))* qu_notion)`
+-}
+qu_chain  = liftM (foldl fld id) $ wd_token "for" >> qu_notion `sepByLL1` comma 
+-- we can use LL1 here, since there must always follow
+  where                                                                       
+    -- a parser belonging to the same non-terminal
     fld x (y, _)  = x . y
 
 
