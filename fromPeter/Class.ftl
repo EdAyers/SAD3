@@ -20,6 +20,8 @@
 
 # Axioms I and II are built into SAD3.
 
+[prove off]
+
 Let x, y, z, r, s, t, a, b, c, d, e stand for sets.
 
 Let a \in b stand for a is an element of b.
@@ -206,61 +208,94 @@ Theorem 47c. If x is not a sset or y is not a sset then
 Theorem 47d. If x is not a sset or y is not a sset then
 \bigcup <x,y> = UU.
 
-# Ordered Pairs; Relations
+# # Ordered Pairs; Relations
 
-Definition 48. [x,y] = <<x>,<x,y>>.
-Let the ordered pair of x and y stand for [x,y].
+# Definition 48. [x,y] = <<x>,<x,y>>.
+# Let the ordered pair of x and y stand for [x,y].
 
-Theorem 49a. [x,y] is a sset iff x is a sset and y is a sset.
-Theorem 49b. If [x,y] is not a sset then [x,y] = UU.
+# Theorem 49a. [x,y] is a sset iff x is a sset and y is a sset.
+# Theorem 49b. If [x,y] is not a sset then [x,y] = UU.
 
 
 
-Theorem 50a. If x and y are ssets then 
-  \bigcup [x,y] = <x,y> and
-  \bigcap [x,y] = <x> and
-  \bigcup \bigcap [x,y] = x and
-  \bigcap \bigcap [x,y] = x and
-  \bigcup \bigcup [x,y] = x \cup y and
-  \bigcap \bigcup [x,y] = x \cap y.
+# Theorem 50a. If x and y are ssets then 
+#   \bigcup [x,y] = <x,y> and
+#   \bigcap [x,y] = <x> and
+#   \bigcup \bigcap [x,y] = x and
+#   \bigcap \bigcap [x,y] = x and
+#   \bigcup \bigcup [x,y] = x \cup y and
+#   \bigcap \bigcup [x,y] = x \cap y.
 
-Theorem. If x is not a sset or y is not a sset then
-  \bigcup \bigcap [x,y] = 0 and
-  \bigcap \bigcap [x,y] = UU and
-  \bigcup \bigcup [x,y] = UU and
-  \bigcap \bigcup [x,y] = 0.
+# Theorem. If x is not a sset or y is not a sset then
+#   \bigcup \bigcap [x,y] = 0 and
+#   \bigcap \bigcap [x,y] = UU and
+#   \bigcup \bigcup [x,y] = UU and
+#   \bigcap \bigcup [x,y] = 0.
 
-Definition 51. 1st z = \bigcap \bigcap z.
+# Definition 51. 1st z = \bigcap \bigcap z.
 
-Definition 52. 2nd z = (\bigcap \bigcup z) \cup 
-((\bigcup \bigcup z) ~ \bigcup \bigcap z). 
-Let the first coordinate of z stand for 1st z.
-Let the second coordinate of z stand for 2nd z.
+# Definition 52. 2nd z = (\bigcap \bigcup z) \cup 
+# ((\bigcup \bigcup z) ~ \bigcup \bigcap z). 
+# Let the first coordinate of z stand for 1st z.
+# Let the second coordinate of z stand for 2nd z.
 
-Theorem 53. 2nd UU = UU.
+# Theorem 53. 2nd UU = UU.
 
-Theorem 54a. If x and y are ssets then 1st [x,y] = x.
-Theorem 54b. If x and y are ssets then 2nd [x,y] = y.
-Proof. Let x and y be ssets.
-2nd [x,y] = (\bigcap \bigcup [x,y]) \cup 
-((\bigcup \bigcup [x,y]) ~ \bigcup \bigcap [x,y])
-= (x \cap y) \cup ((x \cup y) ~ x)
-= y.
+# Theorem 54a. If x and y are ssets then 1st [x,y] = x.
+# Theorem 54b. If x and y are ssets then 2nd [x,y] = y.
+# Proof. Let x and y be ssets.
+# 2nd [x,y] = (\bigcap \bigcup [x,y]) \cup 
+# ((\bigcup \bigcup [x,y]) ~ \bigcup \bigcap [x,y])
+# = (x \cap y) \cup ((x \cup y) ~ x)
+# = y.
+# qed.
+
+# Theorem 54c. If x is not a sset or y is not a sset then
+# 1st [x,y] = UU and 2nd [x,y] = UU.
+
+Signature 48. [x,y] is a set.
+Axiom 49a. [x,y] is a sset iff x is a sset and y is a sset.
+Signature 51s. 1st x is a set.
+Signature 52s. 2nd x is a set.
+Axiom 51. 1st [x,y] = x.
+Axiom 52. 2nd [x,y] = y.
+Axiom 55. If x and y are ssets and [x,y] = [r,s] then x = r and y = s.
+
+# # We can now extend the signature (our language)
+# # by [ , ], satisfying axioms ... .
+# # Ideally, we would like [ , ] an "object" and
+# # not a set. This requires sets to be objects.
+# # For the moment, we can however agree [ , ] to
+# # be a set or UU (= undefined).
+
+[relation/-s]
+Definition 56. A relation is a set r such that for each element z of r there exist x and y such that z = [x,y].
+
+Let r, s, t stand for relations.
+
+Definition 57. r \circ s =
+    {[x,z] | x,z are ssets and there exists b such that [x,b] \in s and [b,z] \in r}.
+
+Theorem 58. (r \circ s) \circ t = r \circ (s \circ t).
+Proof. (r \circ s) \circ t \subset r \circ (s \circ t) and
+r \circ (s \circ t) \subset (r \circ s) \circ t.
 qed.
 
-Theorem 54c. If x is not a sset or y is not a sset then
-1st [x,y] = UU and 2nd [x,y] = UU.
+Theorem 59a. r \circ (s \cup t) = (r \circ s) \cup (r \circ t).
+Proof. r \circ (s \cup t) \subset (r \circ s) \cup (r \circ t) and
+       (r \circ s) \cup (r \circ t) \subset r \circ (s \cup t).
+qed.
 
-Theorem 55. If x and y are ssets and [x,y] = [r,s] then
-x = r and y = s.
+[/prove]
 
-# We can now extend the signature (our language)
-# by [ , ], satisfying axioms ... .
-# Ideally, we would like [ , ] an "object" and
-# not a set. This requires sets to be objects.
-# For the moment, we can however agree [ , ] to
-# be a set or UU (= undefined).
+Theorem 59b. r \circ (s \cap t) \subset (r \circ s).
+Proof. Let p be an element p of r \circ (s \cap t).
+    We can take b such that [1st p,b] \in r and [b,2nd p] \in s \cap t.
+    (1st p, b) \in r
+    and (b, 2nd p) \in s.
+qed.
+Definition 60. r \inv = {[x,y] | [y,x] \in r}.
 
-Definition 56. A relation is a set r such that for each element z of r
-there exist x and y such that z = [x,y].
-
+Theorem 61. r \inv \inv = r.
+Theorem 62. (r \circ s) \inv = (s \inv) \circ (r \inv).
+#Definition 63. f is a function 
