@@ -1,8 +1,9 @@
 ## SAD3 ##
 
-*System for Automated Deduction* (SAD 3rd generation) -- Proof Checking of Natural Mathematical Documents
+*System for Automated Deduction* (SAD 3rd generation) -- Proof Checking of Natural Mathematical Documents.
 
-[TODO] add a summary.
+[TODO] add a summary of the project
+[TODO] add links to papers.
 
 # Build #
 
@@ -41,7 +42,7 @@ rm -rf E
 cd ..
 ```
 
-# Test #
+# Test
 ```sh
 for FILE in examples/*.ftl
 do
@@ -62,14 +63,48 @@ done
 
 # Development #
 
-* The Haskell Tool Stack: https://www.haskellstack.org
 
-* Haskell IDE within VSCode: https://github.com/haskell/haskell-ide-engine
+## [Haskell Stack](https://www.haskellstack.org)
 
-[TODO] walk through this.
+On macOS do: `brew install stack`.
 
+## [Haskell IDE](https://github.com/haskell/haskell-ide-engine) within VSCode 
+If you want to tinker with the Haskell code, we reccomend using VSCode with the following setup.
+Build HIE from source:
+```sh
+cd ~
+git clone https://github.com/haskell/haskell-ide-engine.git
+cd haskell-ide-engine
+stack build
+```
+Then install the [VSCode Haskell Language Server Extension](https://marketplace.visualstudio.com/items?itemName=alanz.vscode-hie-server).
+Then add this line to your `settings.json`:
+```json
+  "languageServerHaskell.hieExecutablePath": "~/.local/bin/hie",
+```
+If you want to see documentation on hover then run `stack haddock --keep-going` in your project directory.
 
-# Options #
+# Options
+
+The SAD3 command line tool takes the following options:
 
 - `-T` show the FOL output.
 - [TODO]
+
+# Tips
+
+### Switching off the prover.
+
+You can force SAD to accept theorems without trying to prove them:
+```forthel
+[prove off]
+Theorem not_proven. x != x.
+[/prove]
+Theorem proven. x = x.
+```
+This saves lots of time because you don't have to wait for stuff that was proven last time to be proven.
+The plan is to have a continuous proof-checking feature soon.
+
+### VSCode language support for ForThel
+
+[TODO] publish the vscode extension for forthel.
