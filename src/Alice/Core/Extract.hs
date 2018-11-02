@@ -13,10 +13,14 @@ module Alice.Core.Extract (
 ) where
 
 import Alice.Data.Formula
-import Alice.Data.Definition
-import Alice.Data.Evaluation
-import Alice.Data.Text.Context (Context(cnForm), cnName)
-import Alice.Data.Rules
+import Alice.Data.Definition (DefEntry(DE), Definitions, DefType(..))
+import qualified Alice.Data.Definition as Definition
+import Alice.Data.Evaluation (Evaluation(EV))
+import qualified Alice.Data.Evaluation as Evaluation
+import Alice.Data.Text.Context (Context)
+import qualified Alice.Data.Text.Context as Context (formula, name)
+import Alice.Data.Rules (Rule(Rule))
+import qualified Alice.Data.Rules as Rule
 import Alice.Core.Base
 import Alice.Core.Reduction
 import Alice.Prove.Normalize
@@ -39,7 +43,7 @@ addDefinition f = do
   defs <- askGlobalState definitions; let newDef = extractDefinition defs f
   updateGlobalState (\rs -> rs {definitions = add newDef (definitions rs)})
   where
-    add df@DE {dfTerm = t} = IM.insert (trId t) df
+    add df@DE {Definition.term = t} = IM.insert (trId t) df
 
 {- Extract definition from a formula. Evidence closure and type-likes are
 computed afterwards -}
@@ -47,23 +51,23 @@ extractDefinition :: Definitions -> Formula -> DefEntry
 extractDefinition defs =
   closeEvidence defs . addTypeLikes defs . makeDefinition . dive [] 0
   where
-    dive guards _ (All _ (Iff (Tag DHD Trm {trName = "=", trArgs = [_, t]}) f))
+    dive guards _ (All _ (Iff (Tag HeadTerm Trm {trName = "=", trArgs = [_, t]}) f))
       = (guards, instWith ThisT f, Definition, t) -- function definition
-    dive guards _ (All _ (Imp (Tag DHD Trm {trName = "=", trArgs = [_, t]}) f))
+    dive guards _ (All _ (Imp (Tag HeadTerm Trm {trName = "=", trArgs = [_, t]}) f))
       = (guards, instWith ThisT f, Signature, t)  -- function sigext
-    dive guards _ (Iff (Tag DHD t) f)
+    dive guards _ (Iff (Tag HeadTerm t) f)
       = (guards, f, Definition, t)                -- predicate definition
-    dive guards _ (Imp (Tag DHD t) f)
+    dive guards _ (Imp (Tag HeadTerm t) f)
       = (guards, f, Signature,t)                  -- predicate sigext
 
     -- make a universal quant matchable
     dive guards n (All _ f) = dive guards (succ n) $ inst ('?':show n) f
     dive guards n (Imp g f) = dive (guards ++ deAnd g) n f
     makeDefinition (guards, formula, kind, term) = DE {
-      dfGrds = guards, dfForm = formula,
-      dfType = kind, dfTerm = term,
-      dfEvid = extractEvidences term formula,
-      dfTplk = []}
+      Definition.guards = guards, Definition.formula = formula,
+      Definition.kind = kind, Definition.term = term,
+      Definition.evidence = extractEvidences term formula,
+      Definition.typeLikes = []}
 
 
 {- get evidence for a defined term from a definitional formula -}
@@ -76,7 +80,7 @@ extractEvidences t =
 
 {- computes and adds type-likes for ontological reduction to a definition.-}
 addTypeLikes :: Definitions -> DefEntry -> DefEntry
-addTypeLikes dfs def = def {dfTplk = tp_likes $ dfGrds def}
+addTypeLikes dfs def = def {Definition.typeLikes = tp_likes $ Definition.guards def}
   where
     tp_likes fs =
       rn_classes [] $
@@ -96,13 +100,13 @@ addTypeLikes dfs def = def {dfTplk = tp_likes $ dfGrds def}
 if we have "natural c= rational c= real" then we do not only know that
 a natural number is rational, but also add the info that it is real.-}
 closeEvidence :: Definitions -> DefEntry -> DefEntry
-closeEvidence dfs def@DE{dfEvid = evidence} = def { dfEvid = newEvidence }
+closeEvidence dfs def@DE{Definition.evidence = evidence} = def { Definition.evidence = newEvidence }
   where
     newEvidence = nubBy twins $ evidence ++ concatMap defEvidence evidence
     defEvidence t@Trm {trId = n} =
       let def = fromJust $ IM.lookup n dfs
-          sb  = fromJust $ match (dfTerm def) $ fromTo '?' 'u' t
-      in  map (fromTo 'u' '?' . sb) $ dfEvid def
+          sb  = fromJust $ match (Definition.term def) $ fromTo '?' 'u' t
+      in  map (fromTo 'u' '?' . sb) $ Definition.evidence def
     defEvidence _ = []
 
 
@@ -111,12 +115,12 @@ closeEvidence dfs def@DE{dfEvid = evidence} = def { dfEvid = newEvidence }
 
 extractRewriteRule :: Context -> [Rule]
 extractRewriteRule c =
-  map (\rl -> rl {rlLabl = cnName c}) $ dive 0 [] $ cnForm c
+  map (\rl -> rl {Rule.label = Context.name c}) $ dive 0 [] $ Context.formula c
   where
-    -- if DHD is reached, discard all collected conditions
-    dive n gs (All _ (Iff (Tag DHD Trm {trName = "=", trArgs = [_,t]}) f )) =
+    -- if HeadTerm is reached, discard all collected conditions
+    dive n gs (All _ (Iff (Tag HeadTerm Trm {trName = "=", trArgs = [_,t]}) f )) =
       dive n gs $ subst t "" $ inst "" f
-    dive n gs (All _ (Imp (Tag DHD Trm {trName = "=", trArgs = [_, t]}) f)) =
+    dive n gs (All _ (Imp (Tag HeadTerm Trm {trName = "=", trArgs = [_, t]}) f)) =
       dive n gs $ subst t "" $ inst "" f
     -- make universal quantifier matchable
     dive n gs (All _ f) = let nn = '?' : show n in dive (succ n) gs $ inst nn f
@@ -133,13 +137,13 @@ extractRewriteRule c =
 -- Evaluation for functions and sets
 
 addEvaluation evaluations f =
-  foldr (\eval -> DT.insert (evTerm eval) eval) evaluations $
+  foldr (\eval -> DT.insert (Evaluation.term eval) eval) evaluations $
   extractEvaluation evaluations f
 
-extractEvaluation :: DT.DisTree Eval -> Formula -> [Eval]
+extractEvaluation :: DT.DisTree Evaluation -> Formula -> [Evaluation]
 extractEvaluation dt = flip runReaderT (0, dt) . dive
   where
-    dive (All _ (Iff (Tag DHD Trm {trName = "=", trArgs = [_, t]}) f))
+    dive (All _ (Iff (Tag HeadTerm Trm {trName = "=", trArgs = [_, t]}) f))
       = extractEv id [] $ instWith t f
     dive (All _ f) = freshV dive f
     dive (Imp f g) = dive g
@@ -152,21 +156,21 @@ freshV fn f = do -- generate fresh variables
 
 
 extractFunctionEval :: (Formula -> Formula) -> [Formula] -> Formula
-  -> ReaderT (Int, DT.DisTree Eval) [] Eval
-extractFunctionEval c gs (And g@(Tag DDM _ ) h) =
+  -> ReaderT (Int, DT.DisTree Evaluation) [] Evaluation
+extractFunctionEval c gs (And g@(Tag Domain _ ) h) =
   extractSetEval c gs g `mplus` extractFunctionEval c gs h
 extractFunctionEval c gs (And f g) = extractFunctionEval c gs g
 extractFunctionEval c gs f = dive c gs f
   where
     dive c gs (Imp _ g) = dive c gs g -- ignore ontological assumptions
-    dive c gs (Tag DCD (Imp f g)) = dive c (f:gs) g --but add case distinctions
+    dive c gs (Tag Condition (Imp f g)) = dive c (f:gs) g --but add case distinctions
     dive c gs (All _ f) = freshV (dive c gs) f
     dive c gs (And f g) = dive c gs f `mplus` dive c gs g
-    dive c gs (Tag DEV f@Trm{ trName = "=", trArgs = [tr,vl]} ) =
+    dive c gs (Tag Evaluation f@Trm{ trName = "=", trArgs = [tr,vl]} ) =
       let nf = c f {trArgs = [ThisT, vl] }
       in  return $ EV tr nf nf gs
-    dive c gs (Exi x (And (Tag DEF f)
-      (Tag DEV Trm {trName = "=", trArgs = [tr, Ind n]})))
+    dive c gs (Exi x (And (Tag Defined f)
+      (Tag Evaluation Trm {trName = "=", trArgs = [tr, Ind n]})))
         | n == 0 = extractEv c gs $ dec $ instWith tr f
     dive c gs (Exi x (And f g)) = dive (c . zExi x . And f) gs $ inst x g
     dive _ _ _ = mzero
@@ -174,14 +178,14 @@ extractFunctionEval c gs f = dive c gs f
     deConj (And f g) = deConj f ++ deConj g; deConj f = [f]
 
 extractSetEval :: (Formula -> Formula) -> [Formula]-> Formula
-  -> ReaderT (Int, DT.DisTree Eval) [] Eval
+  -> ReaderT (Int, DT.DisTree Evaluation) [] Evaluation
 extractSetEval c gs (And f g) =
   extractSetEval c gs f `mplus` extractSetEval c gs g
 extractSetEval c gs (Tag _ f) = extractSetEval c gs f
 extractSetEval c gs (All _ (Iff g@Trm{trArgs = [_,t]} f )) | isElem g = do
   (n, evals) <- ask
   let nm = '?':show n; nf = simplifyElementCondition evals $ strip $ inst nm f
-  return $ EV (zElem (zVar nm) t) (mkPos $ c $ Tag DEV nf)(c nf) gs
+  return $ EV (zElem (zVar nm) t) (mkPos $ c $ Tag Evaluation nf)(c nf) gs
 extractSetEval _ _ f = mzero
 
 
@@ -192,15 +196,15 @@ simplifyElementCondition evals = dive
     dive f = mapF dive f
 
     simp f = do
-      ev <- DT.lookup f evals >>= single; guard (null $ evCond ev)
-      sb <- match (evTerm ev) f; return $ sb $ evNeg ev
+      ev <- DT.lookup f evals >>= single; guard (null $ Evaluation.conditions ev)
+      sb <- match (Evaluation.term ev) f; return $ sb $ Evaluation.negatives ev
 
     single [x] = return x; single l = mzero
 
 mkPos = dive
   where
     dive (Exi x f)   = All x $ dive f
-    dive (Tag DEV f) = f
+    dive (Tag Evaluation f) = f
     dive (And f g) = Imp f $ dive g
 
 

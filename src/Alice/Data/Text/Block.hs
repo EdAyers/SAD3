@@ -1,6 +1,7 @@
 module Alice.Data.Text.Block (
   Text(..),
   Block(..),
+  makeBlock,
   Section(..),
   showForm,
   formulate,
@@ -28,7 +29,12 @@ data Block  = Block {
   position          :: SourcePos, -- position in the sourcetext file.
   text              :: String } -- the sourcetext that was parsed to this block?
 
-{- All possible types that a ForTheL block can have. -}
+  
+makeBlock :: Formula -> [Text] -> Section -> String -> [String] -> SourcePos -> String -> Block
+makeBlock form body kind name link pos txt =
+  Block form body kind [] name link (rangePos (pos, advancesPos pos txt)) txt
+
+{-| All possible types that a ForThel block can have. -}
 data Section =
   Definition | Signature | Axiom       | Theorem | CaseHypothesis  |
   Assumption | Selection | Affirmation | Posit   | LowDefinition

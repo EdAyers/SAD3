@@ -30,12 +30,10 @@ import Debug.Trace
 -- Init file parsing
 
 readInit :: String -> IO [Instr]
-
-readInit ""   = return []
-
+readInit "" = return []
 readInit file =
   do  input <- catch (readFile file) $ die file . ioeGetErrorString
-      let toks = tokenize file input ; ips = State () toks
+      let toks = tokenize (filePos file) input ; ips = State () toks
       liftM fst $ launchParser instf ips
 
 instf :: Parser st [Instr]
@@ -56,7 +54,7 @@ reader lb fs ss [TI (InStr ISread file)] =
       reader lb fs ss [TI $ InStr ISfile $ lb ++ '/' : file]
 
 reader lb fs (ps:ss) [TI (InStr ISfile file)] | file `elem` fs =
-  do  outputMain NORMAL (namePos file) "already read, skipping"
+  do  outputMain NORMAL (fileOnlyPos file) "already read, skipping"
       (ntx, nps) <- launchParser forthel ps
       reader lb fs (nps:ss) ntx
 
@@ -64,7 +62,7 @@ reader lb fs (ps:ss) [TI (InStr ISfile file)] =
   do  let gfl = if null file  then hGetContents stdin
                               else readFile file
       input <- catch gfl $ die file . ioeGetErrorString
-      let toks = tokenize file input
+      let toks = tokenize (filePos file) input
           st  = State ((stUser ps) { tvr_expr = [] }) toks
       (ntx, nps) <- launchParser forthel st
       reader lb (file:fs) (nps:ps:ss) ntx
@@ -72,7 +70,7 @@ reader lb fs (ps:ss) [TI (InStr ISfile file)] =
 reader lb fs ss (t:ts) = liftM (t:) $ reader lb fs ss ts
 
 reader lb fs (sps:ps:ss) [] =
-  do  outputParser NORMAL (namePos $ head fs) "parsing successful"
+  do  outputParser NORMAL (fileOnlyPos $ head fs) "parsing successful"
       let rps = ps {stUser = (stUser sps) {tvr_expr = tvr_expr $ stUser ps}}
       (ntx, nps) <- launchParser forthel rps
       reader lb fs (nps:ss) ntx
@@ -94,4 +92,4 @@ launchParser parser st =
 -- Service stuff
 
 die :: String -> String -> IO a
-die fileName st = outputMain NORMAL (namePos fileName) st >> exitFailure
+die fileName st = outputMain NORMAL (fileOnlyPos fileName) st >> exitFailure

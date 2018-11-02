@@ -9,7 +9,8 @@ module Alice.Core.Thesis (inferNewThesis) where
 
 import Alice.Data.Formula
 import Alice.Data.Definition (Definitions)
-import Alice.Data.Text.Context
+import Alice.Data.Text.Context (Context)
+import qualified Alice.Data.Text.Context as Context 
 import Alice.Core.Base
 import Alice.Core.Reason
 
@@ -36,19 +37,19 @@ inferNewThesis definitions wholeContext@(context:_) thesis
   where
     -- a thesis can only become unmotivated through an assumption
     motivated = notAnAssumption || isJust usefulVariation
-    newThesis = setForm thesis $ reduceWithEvidence $ getObj postReductionThesis
+    newThesis = Context.setForm thesis $ reduceWithEvidence $ getObj postReductionThesis
     changed = hasChanged postReductionThesis
     postReductionThesis
       | notAnAssumption = -- enable destruction of defined symbols in this case
-          reduceThesis definitions (cnForm context) preReductionThesis
+          reduceThesis definitions (Context.formula context) preReductionThesis
       | otherwise =
-          reductionInViewOf (cnForm context) preReductionThesis
+          reductionInViewOf (Context.formula context) preReductionThesis
     preReductionThesis
       | notAnAssumption = thesisFormula
       | otherwise = fromMaybe thesisFormula usefulVariation
     usefulVariation = findUsefulVariation definitions wholeContext thesisFormula
-    thesisFormula = strip $ cnForm thesis
-    notAnAssumption = not $ isAssm context
+    thesisFormula = strip $ Context.formula thesis
+    notAnAssumption = not $ Context.isAssumption context
 
 
 -- Reduce f in view of g
@@ -167,9 +168,9 @@ findUsefulVariation definitions (assumption:restContext) thesis =
   find useful variations
   where
     variations = map snd $
-      runVM (generateVariations definitions thesis) $ cnDecl assumption
+      runVM (generateVariations definitions thesis) $ Context.declaredVariables assumption
     useful variation = isTop $ getObj $
-      reductionInViewOf (Not variation) $ cnForm assumption
+      reductionInViewOf (Not variation) $ Context.formula assumption
 findUsefulVariation _ _ _ = 
   error "Alice.Core.Thesis.findUsefulVariation: empty context"
 
@@ -222,7 +223,7 @@ generateVariations definitions = pass [] (Just True) 0
         dive h@(Imp f g) = case sign of
           Just False  -> Imp f <$> pass (f:localContext) sign n g
           _           -> roundThrough h
-        dive (Tag DMK f) = return f
+        dive (Tag GenericMark f) = return f
         dive h           = roundThrough h
 
         liberateVariableIn f = generateInstantiations f >>= dive
@@ -233,7 +234,7 @@ generateVariations definitions = pass [] (Just True) 0
 {- mark symbols that are recursively defined in their defining formula, so that
    the definition is not infinitely expanded -}
 markRecursive n t@Trm{trId = m} 
-  | n == m = Tag DMK t
+  | n == m = Tag GenericMark t
   | otherwise = t
 markRecursive n f = mapF (markRecursive n) f
 
@@ -280,17 +281,17 @@ instance MonadPlus VariationMonad where
 
 -- special reduction of function thesis
 
-isFunctionMacro = isMacro . cnForm
+isFunctionMacro = isMacro . Context.formula
   where
     isMacro (Tag tg _ ) = fnTag tg
     isMacro _ = False
 
 functionTaskThesis context thesis = (True, changed, newThesis)
   where
-    newThesis = setForm thesis $ getObj reducedThesis
+    newThesis = Context.setForm thesis $ getObj reducedThesis
     changed = hasChanged reducedThesis
-    thesisFormula = cnForm thesis
-    reducedThesis = reduceFunctionTask (cnForm context) thesisFormula
+    thesisFormula = Context.formula thesis
+    reducedThesis = reduceFunctionTask (Context.formula context) thesisFormula
 
 reduceFunctionTask (Tag tg _) = fmap boolSimp . dive
   where

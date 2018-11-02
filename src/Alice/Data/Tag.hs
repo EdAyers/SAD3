@@ -1,18 +1,16 @@
 module Alice.Data.Tag where
 {- Tags are extralogical information that we may attach to Formulae -}
 data Tag =
-  DIG | DMS | DMP | DHD | DIH | DCH | DEC |
+  Dig | DigMultiSubject | DigMultiPairwise | HeadTerm | 
+  InductionHypothesis | CaseHypothesis | EqualityChain |
   -- Tags to mark certain parts of function definitions
-  DMK | DEV | DCD | DEF | DDM | DRP |
+  GenericMark | Evaluation | Condition | Defined | Domain | Replacement |
   -- Tags to mark parts in function proof tasks
-  FDM -- domain
-  | FEX -- existence
-  | FUQ -- uniqueness
-  | FCH -- choice
-  | FDC -- condition
+  DomainTask | ExistenceTask | UniquenessTask | ChoiceTask
   deriving (Eq, Show)
 
 {- whether a Tag marks a part in a function proof task -}
 fnTag :: Tag -> Bool
-fnTag FDM = True; fnTag FCH = True; fnTag FEX = True; fnTag FUQ = True
+fnTag DomainTask    = True; fnTag ChoiceTask     = True
+fnTag ExistenceTask = True; fnTag UniquenessTask = True
 fnTag _   = False

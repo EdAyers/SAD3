@@ -33,10 +33,14 @@ import Alice.Core.Base
 import Alice.Core.Message
 import Alice.Data.Formula
 import Alice.Data.Instr
-import Alice.Data.Text.Context as Context
-import Alice.Data.Text.Block as Block
-import Alice.Data.Definition
-import Alice.Data.Evaluation
+import Alice.Data.Text.Context (Context(Context))
+import qualified Alice.Data.Text.Context as Context
+import Alice.Data.Text.Block (Block, Section(..))
+import qualified Alice.Data.Text.Block as Block
+import Alice.Data.Definition (Definitions)
+import qualified Alice.Data.Definition as Definition
+import Alice.Data.Evaluation (Evaluation)
+import qualified Alice.Data.Evaluation as Evaluation
 import Alice.Export.Prover
 import Alice.ForTheL.Base
 import Alice.Prove.MESON
@@ -50,7 +54,7 @@ reason tc = local (\st -> st {currentThesis = tc}) proveThesis
 
 withGoal :: VM a -> Formula -> VM a
 withGoal action goal = local (\vState ->
-  vState { currentThesis = setForm (currentThesis vState) goal}) action
+  vState { currentThesis = Context.setForm (currentThesis vState) goal}) action
 
 withContext :: VM a -> [Context] -> VM a
 withContext action context = local (\vState -> 
@@ -77,13 +81,13 @@ sequenceGoals reasoningDepth iteration (goal:restGoals) = do
       | reasoningDepth == 1 = depthExceedMessage >> mzero
       | otherwise = do  
           newTask <- unfold
-          let Context {cnForm = Not newGoal} : newContext = newTask
+          let Context {Context.formula = Not newGoal} : newContext = newTask
           sequenceGoals (pred reasoningDepth) (succ iteration) [newGoal]
             `withContext` newContext
 
     depthExceedMessage =
       whenInstruction IBPrsn False $
-        reasonLog NORMAL noPos "reasoning depth exceeded"
+        reasonLog WARNING noPos "reasoning depth exceeded"
 
     updateTrivialStatistics = 
       unless (isTop goal) $ whenInstruction IBPrsn False $
@@ -93,7 +97,7 @@ sequenceGoals reasoningDepth iteration (goal:restGoals) = do
 sequenceGoals  _ _ _ = return ()
 
 splitGoal :: VM [Formula]
-splitGoal = asks (normalizedSplit . strip . cnForm . currentThesis)
+splitGoal = asks (normalizedSplit . strip . Context.formula . currentThesis)
   where
     normalizedSplit = split . albet
     split (All u f) = map (All u) (normalizedSplit f)
@@ -117,12 +121,12 @@ launchProver iteration = do
   addTimeCounter SuccessTime time ; incrementIntCounter SuccessfulGoals
   where
     printTask reductionSetting = do
-      let getFormula = if reductionSetting then cnRedu else cnForm
+      let getFormula = if reductionSetting then Context.reducedFormula else Context.formula
       contextFormulas <- asks $ map getFormula . reverse . currentContext
       concl <- thesis
       reasonLog NORMAL noPos $ "prover task:\n" ++
         concatMap (\form -> "  " ++ show form ++ "\n") contextFormulas ++
-        "  |- " ++ show (cnForm concl) ++ "\n"
+        "  |- " ++ show (Context.formula concl) ++ "\n"
 
 
 launchReasoning :: VM ()
@@ -131,7 +135,7 @@ launchReasoning = do
   skolemInt <- askGlobalState skolemCounter
   mesonPos <- askGlobalState mesonPositives
   mesonNeg <- askGlobalState mesonNegatives
-  let lowlevelContext = takeWhile cnLowL context
+  let lowlevelContext = takeWhile Context.isLowLevel context
       proveGoal = prove skolemInt lowlevelContext mesonPos mesonNeg goal
       -- set timelimit to 10^4 
       -- (usually not necessary as max proof depth is limited)
@@ -148,32 +152,32 @@ launchReasoning = do
   context is selected. -}
 filterContext :: VM a -> [Context] -> VM a
 filterContext action context = do
-  link <- asks (cnLink . currentThesis) >>= getLink;
+  link <- asks (Context.link . currentThesis) >>= getLink;
   if Set.null link 
     then action `withContext` 
-         (map replaceSignHead $ filter (not . isTop . cnRedu) context)
+         (map replaceSignHead $ filter (not . isTop . Context.reducedFormula) context)
     else do
          linkedContext <- retrieveContext link 
          action `withContext` (lowlevelContext ++ linkedContext ++ defsAndSigs)
   where
-    (lowlevelContext, toplevelContext) = span cnLowL context
+    (lowlevelContext, toplevelContext) = span Context.isLowLevel context
     defsAndSigs = 
-      let defOrSig c = (not . isTop . cnRedu $ c) 
+      let defOrSig c = (not . isTop . Context.reducedFormula $ c) 
                     && (isDefinition c || isSignature c)
       in  map replaceHeadTerm $ filter defOrSig toplevelContext
 
 isDefinition, isSignature :: Context -> Bool
-isDefinition = (==) Block.Definition . kind . cnHead
-isSignature  = (==) Block.Signature  . kind . cnHead
+isDefinition = (==) Definition . Block.kind . Context.head
+isSignature  = (==) Signature  . Block.kind . Context.head
 
 replaceHeadTerm :: Context -> Context
-replaceHeadTerm c = setForm c $ dive 0 $ cnForm c
+replaceHeadTerm c = Context.setForm c $ dive 0 $ Context.formula c
   where
-    dive n (All _ (Imp (Tag DHD Trm {trName = "=", trArgs = [_, t]}) f)) =
+    dive n (All _ (Imp (Tag HeadTerm Trm {trName = "=", trArgs = [_, t]}) f)) =
       subst t "" $ inst "" f
-    dive n (All _ (Iff (Tag DHD eq@Trm {trName = "=", trArgs = [_, t]}) f))
+    dive n (All _ (Iff (Tag HeadTerm eq@Trm {trName = "=", trArgs = [_, t]}) f))
       = And (subst t "" $ inst "" f) (All "" $ Imp f eq)
-    dive n (All _ (Imp (Tag DHD Trm{}) Top)) = Top
+    dive n (All _ (Imp (Tag HeadTerm Trm{}) Top)) = Top
     dive n (All v f) =
       bool $ All v $ bind (show n) $ dive (succ n) $ inst (show n) f
     dive n (Imp f g) = bool $ Imp f $ dive n g
@@ -219,7 +223,7 @@ lookFor literal t =
 
 data UnfoldState = UF {
   defs             :: Definitions, 
-  evals            :: DT.DisTree Eval,
+  evals            :: DT.DisTree Evaluation,
   unfoldSetting    :: Bool, -- user parameters that control what is unfolded
   unfoldSetSetting :: Bool }
 
@@ -228,14 +232,14 @@ data UnfoldState = UF {
 unfold :: VM [Context]
 unfold = do  
   thesis <- thesis; context <- context
-  let task = setForm thesis (Not $ cnForm thesis) : context
+  let task = Context.setForm thesis (Not $ Context.formula thesis) : context
   definitions  <- askGlobalState definitions; evaluations <- asks evaluations
   generalUnfoldSetting     <- askInstructionBin IBUnfl True
   lowlevelUnfoldSetting    <- askInstructionBin IBUfdl True
   generalSetUnfoldSetting  <- askInstructionBin IBUnfs True
   lowlevelSetUnfoldSetting <- askInstructionBin IBUfds False
   guard (generalUnfoldSetting || generalSetUnfoldSetting)
-  let ((goal:toUnfold), topLevelContext) = span cnLowL task
+  let ((goal:toUnfold), topLevelContext) = span Context.isLowLevel task
       unfoldState = UF
         definitions 
         evaluations
@@ -258,8 +262,8 @@ unfold = do
       whenInstruction IBPunf False $ reasonLog NORMAL noPos "nothing to unfold"
     unfoldLog (goal:lowLevelContext) =
       whenInstruction IBPunf False $ reasonLog NORMAL noPos $ "unfold to:\n"
-        ++ unlines (reverse $ map ((++) "  " . show . cnForm) lowLevelContext)
-        ++ "  |- " ++ show (neg $ cnForm goal)
+        ++ unlines (reverse $ map ((++) "  " . show . Context.formula) lowLevelContext)
+        ++ "  |- " ++ show (neg $ Context.formula goal)
     neg (Not f) = f; neg f = f
 
 
@@ -269,7 +273,7 @@ unfoldConservative :: Context
 unfoldConservative toUnfold 
   | isDeclaration toUnfold = return toUnfold
   | otherwise =
-      fmap (setForm toUnfold) $ fill [] (Just True) 0 $ cnForm toUnfold
+      fmap (Context.setForm toUnfold) $ fill [] (Just True) 0 $ Context.formula toUnfold
   where
     fill localContext sign n f 
       | hasDMK f = return f -- check if f has been unfolded already
@@ -278,7 +282,7 @@ unfoldConservative toUnfold
     fill localContext sign n (Iff f g) = fill localContext sign n $ zIff f g
     fill localContext sign n f = roundFM 'u' fill localContext sign n f
 
-    isDeclaration = (==) LowDefinition . kind . cnHead
+    isDeclaration = (==) LowDefinition . Block.kind . Context.head
 
 {- unfold an atomic formula f occuring with polarity sign -}
 unfoldAtomic sign f = do
@@ -287,13 +291,13 @@ unfoldAtomic sign f = do
   where
     -- we mark the term so that it does not get 
     -- unfolded again in subsequent iterations
-    marked = Tag DMK f
+    marked = Tag GenericMark f
 
-    subtermLocalProperties (Tag DMK _) = return [] -- do not expand marked terms
+    subtermLocalProperties (Tag GenericMark _) = return [] -- do not expand marked terms
     subtermLocalProperties h = foldFM termLocalProperties h
     termLocalProperties h = 
       liftM2 (++) (subtermLocalProperties h) (localProperties h)
-    localProperties (Tag DMK _) = return []
+    localProperties (Tag GenericMark _) = return []
     localProperties Trm {trName = "=", trArgs = [l,r]} =
       liftM3 (\a b c -> a ++ b ++ c) 
              (definitionalProperties l r)
@@ -313,9 +317,9 @@ unfoldAtomic sign f = do
       let definingFormula = maybeToList $ do
             id <- tryToGetID f; def <- IM.lookup id definitions;
             -- only unfold a definitions or (a sigext in a positive position)
-            guard (sign || dfSign def)
-            sb <- match (dfTerm def) f
-            let definingFormula = replace (Tag DMK g) ThisT $ sb $ dfForm def
+            guard (sign || Definition.isDefinition def)
+            sb <- match (Definition.term def) f
+            let definingFormula = replace (Tag GenericMark g) ThisT $ sb $ Definition.formula def
         -- substitute the (marked) term
             guard (not . isTop $ definingFormula)
             return definingFormula
@@ -352,15 +356,15 @@ unfoldAtomic sign f = do
         return evaluationFormula
       where
         findev ev = do
-          sb <- match (evTerm ev) t
-          guard (all trivialByEvidence $ map sb $ evCond ev)
-          return $ replace (Tag DMK t) ThisT $ sb $ 
-            if sign then evPos ev else evNeg ev
+          sb <- match (Evaluation.term ev) t
+          guard (all trivialByEvidence $ map sb $ Evaluation.conditions ev)
+          return $ replace (Tag GenericMark t) ThisT $ sb $ 
+            if sign then Evaluation.positives ev else Evaluation.negatives ev
 
     unfGuard unfoldSetting action =
       asks unfoldSetting >>= \p -> if p then action else return []
 
-hasDMK (Tag DMK _ ) = True
+hasDMK (Tag GenericMark _ ) = True
 hasDMK _ = False
 
 setType f | hasInfo f = any (infoTwins ThisT $ zSet ThisT) $ trInfo f
