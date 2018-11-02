@@ -89,6 +89,7 @@ If you want to see documentation on hover then run `stack haddock --keep-going` 
 The SAD3 command line tool takes the following options:
 
 - `-T` show the FOL output.
+- `-v`, `-vv`, `-vvvvvv`, varying degrees of verbosity.
 - [TODO]
 
 # Tips

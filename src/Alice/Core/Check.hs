@@ -30,7 +30,7 @@ import Alice.Core.ProofTask
 import qualified Alice.Data.Structures.DisTree as DT
 
 
-{- check definitions and fortify terms with evidences in a formula -}
+{-| check definitions and fortify terms with evidences in a formula -}
 fillDef :: Context -> VM Formula
 fillDef context = fill True False [] (Just True) 0 $ cnForm context
   where
