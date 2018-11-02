@@ -34,23 +34,23 @@
 # by Gödel.
 # 
 # We change the ontology by distinguishing classes and objects.
-# A class that is an object is a set.
+# A class that is an object is a sset.
 # We restrict definitions of operations like 
 # singletons and pairs to objects, when it is not necessary to
 # apply them to classes. 
-# This file uses SADs inbuilt set notion and mechanisms to model the
+# This file uses SADs inbuilt sset notion and mechanisms to model the
 # classes of Kelley. However we have replaced the keyword "set"
 # by "class"
 
 # This file checks in 3 min on my laptop.
 
-# Elementary set Theory
+# Elementary sset Theory
 
 # The Classification Axiom Scheme
 
 Let a \noteq b stand for a != b.
 
-Let x, y, z, r, s, t stand for classes.
+Let x, y, z, r, s, t stand for sets.
 
 [object/-s]
 Signature. An object is a notion.
@@ -65,8 +65,8 @@ Axiom. Every element of x is an object.
 Axiom I. For each x for each y x = y iff for each object z z \in x iff z \in y.
 
 # These are the classes of KM
-[set/-s]
-Definition 1. A set is a class that is an object.
+[sset/-s]
+Definition 1. A sset is a set that is an object.
 
 Definition 2. x \cup y = { object u | u \in x or u \in y }.
 # Definition 3. x \cap y = { object u | u \in x and u \in y }.
@@ -96,21 +96,21 @@ Theorem 28. If x \subset y and y \subset z then x \subset z.
 
 
 # Axiom of subclasses.
-# Axiom III. If x is a set then there is a set y such that for each
+# Axiom III. If x is a sset then there is a sset y such that for each
 # z if z \subset x then z \in y.
 
 # This axiom is a kind of powerset axiom, where the powerset
-# also has all subCLASSES as elements. Since elements are sets
-# these subclasses will be sets. So the separation scheme follows.
+# also has all subCLASSES as elements. Since elements are ssets
+# these subclasses will be ssets. So the separation scheme follows.
 
-# Theorem 33. If x is a set and z \subset x then z is a set.
+# Theorem 33. If x is a sset and z \subset x then z is a sset.
 
 
 # Definition. RR = {set x | x \notin x}.
 
-# Theorem. RR is not a set.
+# Theorem. RR is not a sset.
 
-# Theorem 39. UU is not a set.
+# Theorem 39. UU is not a sset.
 
 
 # Ordered Pairs; Relations
@@ -118,7 +118,7 @@ Theorem 28. If x \subset y and y \subset z then x \subset z.
 # Definition 48. Let x,y be objects. [x,y] = <<x>,<x,y>>.
 # Let the ordered pair of x and y stand for [x,y].
 
-# Theorem 49a. If x,y are objects then [x,y] is a set.
+# Theorem 49a. If x,y are objects then [x,y] is a sset.
 # Theorem 49b. If [x,y] is not an object then [x,y] = UU.
 
 Signature 48. [a,b] is an object.
@@ -140,9 +140,9 @@ objects a and b such that c = [a,b].
 #   \bigcup \bigcup [x,y] = UU and
 #  \bigcap \bigcup [x,y] = 0.
 
-# Definition 51. Let z be a set. 1st z = \bigcap \bigcap z.
+# Definition 51. Let z be a sset. 1st z = \bigcap \bigcap z.
 
-#Definition 52. Let z be a set. 2nd z = (\bigcap \bigcup z) \cup 
+#Definition 52. Let z be a sset. 2nd z = (\bigcap \bigcup z) \cup 
 #((\bigcup \bigcup z) ~ \bigcup \bigcap z). 
 #Let the first coordinate of z stand for 1st z.
 #Let the second coordinate of z stand for 2nd z.

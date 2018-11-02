@@ -20,7 +20,7 @@
 
 # Axioms I and II are built into SAD3.
 
-[prove off]
+# [prove off]
 
 Let x, y, z, r, s, t, a, b, c, d, e stand for sets.
 
@@ -274,28 +274,33 @@ Definition 56. A relation is a set r such that for each element z of r there exi
 Let r, s, t stand for relations.
 
 Definition 57. r \circ s =
-    {[x,z] | x,z are ssets and there exists b such that [x,b] \in s and [b,z] \in r}.
+    {[x,z] | x,z are ssets and there exists a sset b such that [x,b] \in r and [b,z] \in s}.
 
-Theorem 58. (r \circ s) \circ t = r \circ (s \circ t).
-Proof. (r \circ s) \circ t \subset r \circ (s \circ t) and
-r \circ (s \circ t) \subset (r \circ s) \circ t.
-qed.
+# Theorem 58. (r \circ s) \circ t = r \circ (s \circ t). # [TODO]
+# Proof. (r \circ s) \circ t \subset r \circ (s \circ t) and
+#         r \circ (s \circ t) \subset (r \circ s) \circ t.
+# qed.
 
 Theorem 59a. r \circ (s \cup t) = (r \circ s) \cup (r \circ t).
 Proof. r \circ (s \cup t) \subset (r \circ s) \cup (r \circ t) and
        (r \circ s) \cup (r \circ t) \subset r \circ (s \cup t).
 qed.
 
-[/prove]
 
-Theorem 59b. r \circ (s \cap t) \subset (r \circ s).
-Proof. Let p be an element p of r \circ (s \cap t).
-    We can take b such that [1st p,b] \in r and [b,2nd p] \in s \cap t.
-    (1st p, b) \in r
-    and (b, 2nd p) \in s.
+Theorem 59b. r \circ (s \cap t) \subset (r \circ s) \cap (r \circ t).
+Proof. 
+  Let p be an element of r \circ (s \cap t).
+  Take a sset x, y, z such that p = [x,z] and [x,y] \in r and [y,z] \in (s \cap t) (by 57).
+  p \in (r \circ s) (by 57).
 qed.
-Definition 60. r \inv = {[x,y] | [y,x] \in r}.
 
-Theorem 61. r \inv \inv = r.
-Theorem 62. (r \circ s) \inv = (s \inv) \circ (r \inv).
+# [/prove]
+
+# Definition 60. r \inv = {[x,y] | [y,x] \in r}.
+
+# Lemma. r \inv is a relation.
+# Theorem 61. r \inv \inv = r.
+# Theorem 62. (r \circ s) \inv = (s \inv) \circ (r \inv).
 #Definition 63. f is a function 
+
+# [TODO] well founded 81-100.
