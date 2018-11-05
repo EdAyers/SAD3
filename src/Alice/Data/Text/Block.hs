@@ -15,19 +15,22 @@ import Alice.Data.Formula
 import Alice.Core.Position
 import Alice.Data.Instr (Instr, Idrop)
 
+{-| Text is either a `Block` of ForTheL text or an instruction. -}
 data Text = TB Block | TI Instr | TD Idrop
 
-{-- A block is a chunk of text. For example a `Theorem` or `Signature` block.
+{-| A block is a chunk of text. For example a `Theorem` or `Signature` block.
 -}
 data Block  = Block {
-  formula           :: Formula,
-  body              :: [Text], -- [TODO]
-  kind              :: Section, 
-  declaredVariables :: [String],
-  name              :: String,
-  link              :: [String],
-  position          :: SourcePos, -- position in the sourcetext file.
-  text              :: String } -- the sourcetext that was parsed to this block?
+  -- logical fields.
+  formula           :: Formula, -- ^ Formula image, see Andrei's thesis.
+  body              :: [Text], -- ^ The proof body.
+  kind              :: Section, -- ^ The `Definition` in `Definition foo.`.
+  declaredVariables :: [String], -- ^ Used during parsing. Assumptions can declare variables and Choice can declare variables.
+  -- extra fields for user communication.
+  name              :: String,  -- ^ The user provided name for the Block. Eg the foo in `Definition foo.`
+  link              :: [String], -- ^ The definitions referenced in `(by X, Y)`.
+  position          :: SourcePos, -- ^ position in the sourcetext file.
+  text              :: String } -- ^ the sourcetext that was parsed to this block. Modulo whitespace.
 
   
 makeBlock :: Formula -> [Text] -> Section -> String -> [String] -> SourcePos -> String -> Block

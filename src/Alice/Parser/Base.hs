@@ -33,20 +33,25 @@ import Data.List
 import Debug.Trace
 
 
--- Parser state
-data State st = State {stUser :: st, stInput :: [Token] }
+-- | Parser state
+data State st = State {
+  -- | The user state.
+  stUser :: st, 
+  -- | The input stream.
+  stInput :: [Token] 
+}
 
 stPosi :: State st -> SourcePos
 stPosi (State _ (t:ts)) = tokenPos t
 stPosi (State _ [])     = EOF
 
--- intermediate parse results
+-- | intermediate parse results
 data ParseResult st a = PR { prResult :: a, prState :: State st }
 
 instance Functor (ParseResult st) where
   fmap f pr = pr { prResult = f $ prResult pr }
 
--- Continutation passing style ambiguity parser
+-- | Continutation passing style ambiguity parser
 type Continuation st a b =
   ParseError -> [ParseResult st a] -> [ParseResult st a] -> b
 type EmptyFail    b = ParseError -> b

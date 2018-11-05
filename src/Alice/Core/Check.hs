@@ -97,15 +97,13 @@ findDef term@Trm{trArgs = tArgs} = do
       newTerm  = term { trInfo = evidence } -- fortified term
   return (guards, newTerm)
 
-{-
+{-|
 testDef does what the name suggests and tests a definition. if the use has
 disabled ontological checking we just assume that the definition fits, else we
 check it. setup and cleanup take care of the special proof times that we allow
 an ontological check. easyCheck are inbuild reasoning methods, hardCheck passes
 a task to an ATP.
 -}
-
-
 testDef :: Context -> Formula -> DefDuo -> VM Formula
 testDef context term (guards, fortifiedTerm) = do
   userCheckSetting <- askInstructionBin IBchck True
@@ -161,7 +159,7 @@ testDef context term (guards, fortifiedTerm) = do
 
 -- Info heuristic
 
-{- moves through the low level context and collects typings of a given term. In
+{-| moves through the low level context and collects typings of a given term. In
    case of equality we also add the typings of the equated term -}
 typings :: (MonadPlus m) => [Context] -> Formula -> m [Formula]
 typings [] _ = mzero

@@ -67,8 +67,8 @@ import Debug.Trace
 
 -- | Reasoner state
 data RState = RState {
-  instructions :: [Instr],
-  counters     :: [Counter],
+  instructions :: [Instr], -- ^ Instruction stack. A stack of all of the instructions so far. Popped when an `iDrop` of the right type is encountered.
+  counters     :: [Counter], -- ^ Statistics about what has been done so far.
   provers      :: [Prover] }
 
 
@@ -155,7 +155,7 @@ infixl 0 <|>
 (<|>) :: (MonadPlus m) => m a -> m a -> m a
 (<|>) = mplus
 
-
+-- | Verification State.
 data VState = VS {
   thesisMotivated :: Bool,
   rewriteRules    :: [Rule],
@@ -179,16 +179,22 @@ justIO m = lift $ lift $ CRM $ \ _ _ k -> m >>= k
 
 -- State management from inside the verification monad
 
+askRS :: (RState -> b) -> ReaderT VState GM b
 askRS f     = justRS >>= (justIO . fmap f . readIORef)
+updateRS :: (RState -> RState) -> ReaderT VState GM ()
 updateRS f  = justRS >>= (justIO . flip modifyIORef f)
 
+askInstructionInt :: InInt -> Int -> ReaderT VState GM Int
 askInstructionInt    instr _default =
   fmap (askII instr _default) (askRS instructions)
+askInstructionBin :: InBin -> Bool -> ReaderT VState GM Bool
 askInstructionBin    instr _default =
   fmap (askIB instr _default) (askRS instructions)
+askInstructionString :: InStr -> String -> ReaderT VState GM String
 askInstructionString instr _default =
   fmap (askIS instr _default) (askRS instructions)
 
+addInstruction :: Instr -> ReaderT VState GM ()
 addInstruction  instr =
   updateRS $ \rs -> rs { instructions = instr : instructions rs }
 dropInstruction instr =
@@ -275,11 +281,13 @@ insertMRule rules = updateGlobalState (add rules)
 
 initialGlobalState = GL initialDefinitions DT.empty DT.empty M.empty [] 0
 
+addGlobalContext :: Context -> ReaderT VState GM ()
 addGlobalContext cn =
   updateGlobalState (\st -> st {globalContext = cn : globalContext st})
 
 
 
+retrieveContext :: Set.Set String -> ReaderT VState GM [Context]
 retrieveContext names = do
   globalContext <- askGlobalState globalContext
   let (context, unfoundSections) = runState (retrieve globalContext) names
