@@ -17,6 +17,15 @@ dependencies:
 - transformers
 - bytestring
 - utf8-string
+- haskell-lsp
+- hslogger
+- lens
+- stm
+- aeson
+- yi-rope
+- text
+- data-default
+- unordered-containers
 
 library:
   source-dirs:
@@ -33,6 +42,16 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - SAD3
+  watch-exe:
+    main:                scratch.hs
+    source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - SAD3
+    
 
 tests:
   SAD3-test:
