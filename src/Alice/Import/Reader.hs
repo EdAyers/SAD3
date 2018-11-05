@@ -45,21 +45,13 @@ instf = after (optLL1 [] $ chainLL1 instr) eof
 {-| `readText lb ts` takes a library directory and an accumulator of `Text` `ts`. Read docs for `reader` to see how this works. -}
 readText :: String -> [Text] -> IO [Text]
 readText lb = reader lb [] [State initFS []]
-{-| [FIXME] rewrite.
-
+{-| 
 `reader lb fs ss ts` runs a parser, assuming that the deepest element of `ts` is an instruction to load a library or a file.
-      [TODO] I can't really see why it keeps a stack of parser states or why it needs to keep a Text accumulator if it is only parsing the last instruction in `ts`.
+The reader will recursively parse files.
       - `lb :: String` is a library directory.
       - `fs :: [String]` are the full paths of files that have already been parsed.
-      - `ss :: [State FState]` is a stack of parser states.
+      - `ss :: [State FState]` is a stack of parser states to track the parser as it follows file reading instructions.
       - `ts : [Text]` is an accumulator of `Text` objects. 
-      ### How it works.
-      You control what files are loaded by supplying Instruction elements to the `ts` arg.
-      The `Text` items in `ts` are stored in reverse order. So a text deeper in the stack is further towards the top of the document.
-      The `reader` method ignores all of the given entries to `Text` except the deepest one:
-      - `ISread file` instructs to load a library file. It loads this file and then parses it and then adds it to the output.
-      - `ISfile file` instructs to load a file in the pwd. If the filename is in `fs` it is skipped.
-      - Any other items in `ts` are left alone and appear in the output.
 -}
 reader :: String -> [String] -> [State FState] -> [Text] -> IO [Text]
 
@@ -96,8 +88,6 @@ reader lb fs (sps:ps:ss) [] =
 
 reader _ _ _ [] = return []
 
-
-
 -- | launch a parser in the IO monad
 launchParser :: Parser st a -> State st -> IO (a, State st)
 launchParser parser st =
@@ -105,8 +95,6 @@ launchParser parser st =
     Error err -> outputParser NORMAL noPos (show err) >> exitFailure
     Ok [PR a st] -> return (a, st)
     _ -> outputParser NORMAL noPos "ambiguity error here" >> exitFailure
-
-
 
 -- Service stuff
 
