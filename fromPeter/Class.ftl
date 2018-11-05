@@ -20,7 +20,6 @@
 
 # Axioms I and II are built into SAD3.
 
-# [prove off]
 
 Let x, y, z, r, s, t, a, b, c, d, e stand for sets.
 
@@ -294,7 +293,6 @@ Proof.
   p \in (r \circ s) (by 57).
 qed.
 
-# [/prove]
 
 # Definition 60. r \inv = {[x,y] | [y,x] \in r}.
 
@@ -303,4 +301,6 @@ qed.
 # Theorem 62. (r \circ s) \inv = (s \inv) \circ (r \inv).
 #Definition 63. f is a function 
 
-# [TODO] well founded 81-100.
+# Well Ordering
+# ---- --------
+
