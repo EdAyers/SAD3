@@ -197,9 +197,12 @@ module Main where
                 doc  = notification ^. J.params
                                      . J.textDocument
                                      . J.uri
+                version  = notification ^. J.params
+                                     . J.textDocument
+                                     . J.version
                 fileName =  J.uriToFilePath doc
             liftIO $ U.logs $ "********* fileName=" ++ show fileName
-            sendDiagnostics doc (Just 0)
+            sendDiagnostics doc (Just 0) (T.pack $ show version)
     
           -- -------------------------------
     
@@ -225,6 +228,7 @@ module Main where
                 doc  = notification ^. J.params
                                      . J.textDocument
                                      . J.uri
+                --version = notification ^. J.params . J.textDocument . J.version
                 fileName = J.uriToFilePath doc
             liftIO $ U.logs $ "********* fileName=" ++ show fileName
             -- run parser here.
@@ -234,12 +238,14 @@ module Main where
                   --case text of
                     --Right result -> do
                       let r = T.pack $ fileName
-                      let ps = J.ShowMessageRequestParams J.MtInfo r Nothing
-                      rid1 <- nextLspReqId
-                      reactorSend $ ReqShowMessage $ fmServerShowMessageRequest rid1 $ ps
+                      ---- make an info message that sends back the filename
+                      --let ps = J.ShowMessageRequestParams J.MtInfo r Nothing
+                      --rid1 <- nextLspReqId
+                      --reactorSend $ ReqShowMessage $ fmServerShowMessageRequest rid1 $ ps
+                      sendDiagnostics doc Nothing r
                     --Left e -> return ()
                 Nothing -> return ()
-            sendDiagnostics doc Nothing
+            return ()
     
           -- -------------------------------
     
@@ -336,18 +342,17 @@ module Main where
     
     -- | Analyze the file and send any diagnostics to the client in a
     -- "textDocument/publishDiagnostics" notification
-    sendDiagnostics :: J.Uri -> Maybe Int -> R () ()
-    sendDiagnostics fileUri version = do
+    sendDiagnostics :: J.Uri -> Maybe Int -> T.Text -> R () ()
+    sendDiagnostics fileUri version msg = do
       let
         diags = [J.Diagnostic
                   (J.Range (J.Position 0 1) (J.Position 0 5))
                   (Just J.DsWarning)  -- severity
                   Nothing  -- code
                   (Just "lsp-hello") -- source
-                  "Example diagnostic message"
+                  msg
                   (Just (J.List []))
                 ]
-      --reactorSend $ J.NotificationMessage "2.0" "textDocument/publishDiagnostics" (Just r)
       publishDiagnostics 100 fileUri version (partitionBySource diags)
     
     -- ---------------------------------------------------------------------
