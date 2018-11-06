@@ -230,14 +230,14 @@ module Main where
             -- run parser here.
             case fileName of
                 Just fileName ->  do
-                  text <- liftIO $ onSave fileName
-                  case text of
-                    Right result -> do
-                      let r = T.pack $ show $ result
+                  --text <- liftIO $ onSave fileName
+                  --case text of
+                    --Right result -> do
+                      let r = T.pack $ fileName
                       let ps = J.ShowMessageRequestParams J.MtInfo r Nothing
                       rid1 <- nextLspReqId
                       reactorSend $ ReqShowMessage $ fmServerShowMessageRequest rid1 $ ps
-                    Left e -> return ()
+                    --Left e -> return ()
                 Nothing -> return ()
             sendDiagnostics doc Nothing
     
