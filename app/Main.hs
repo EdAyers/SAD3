@@ -4,7 +4,7 @@ Authors: Andrei Paskevich (2001 - 2008), Steffen Frerix (2017 - 2018)
 Parse command line and run verifier.
 -}
 
-module Main where
+module OLDMAIN where
 
 import Data.IORef
 import Data.Time

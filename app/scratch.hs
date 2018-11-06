@@ -34,6 +34,10 @@ module Main where
     import qualified System.Log.Logger                     as L
     import qualified Yi.Rope                               as Yi
     
+    import Alice.Data.Instr
+    import Alice.Import.Reader
+    import Alice.Data.Text.Block
+    
     
     -- ---------------------------------------------------------------------
     {-# ANN module ("HLint: ignore Eta reduce"         :: String) #-}
@@ -118,6 +122,18 @@ module Main where
     
     -- ---------------------------------------------------------------------
     
+    onSave fileName = do
+      commandLine <- return [InStr ISfile fileName]
+      initFile <- readInit (askIS ISinit "init.opt" commandLine)
+    
+      let initialOpts = initFile ++ commandLine
+          revInitialOpts = reverse initialOpts
+      U.logs "starting to parse stuff"
+      -- parse input text
+      text :: (Either E.NoMethodError [Text]) <- E.try $ readText (askIS ISlibr "." revInitialOpts) $ map TI initialOpts
+      U.logs $ "made it after parse"
+      return text
+
     -- | The single point that all events flow through, allowing management of state
     -- to stitch replies and requests together from the two asynchronous sides: lsp
     -- server and backend compiler
@@ -211,6 +227,18 @@ module Main where
                                      . J.uri
                 fileName = J.uriToFilePath doc
             liftIO $ U.logs $ "********* fileName=" ++ show fileName
+            -- run parser here.
+            case fileName of
+                Just fileName ->  do
+                  text <- liftIO $ onSave fileName
+                  case text of
+                    Right result -> do
+                      let r = T.pack $ show $ result
+                      let ps = J.ShowMessageRequestParams J.MtInfo r Nothing
+                      rid1 <- nextLspReqId
+                      reactorSend $ ReqShowMessage $ fmServerShowMessageRequest rid1 $ ps
+                    Left e -> return ()
+                Nothing -> return ()
             sendDiagnostics doc Nothing
     
           -- -------------------------------
@@ -229,7 +257,7 @@ module Main where
             let rspMsg = Core.makeResponseMessage req we
             reactorSend $ RspRename rspMsg
     
-          -- -------------------------------
+          -- ------------------------------- hover request.
     
           HandlerRequest (ReqHover req) -> do
             liftIO $ U.logs $ "reactor:got HoverRequest:" ++ show req
@@ -238,7 +266,7 @@ module Main where
     
             let
               ht = Just $ J.Hover ms (Just range)
-              ms = J.List [J.CodeString $ J.LanguageString "lsp-hello" "TYPE INFO" ]
+              ms = J.List [J.CodeString $ J.LanguageString "lsp-hello" (T.pack $ show req) ]
               range = J.Range pos pos
             reactorSend $ RspHover $ Core.makeResponseMessage req ht
     
@@ -319,7 +347,7 @@ module Main where
                   "Example diagnostic message"
                   (Just (J.List []))
                 ]
-      -- reactorSend $ J.NotificationMessage "2.0" "textDocument/publishDiagnostics" (Just r)
+      --reactorSend $ J.NotificationMessage "2.0" "textDocument/publishDiagnostics" (Just r)
       publishDiagnostics 100 fileUri version (partitionBySource diags)
     
     -- ---------------------------------------------------------------------
