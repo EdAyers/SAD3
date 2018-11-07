@@ -32,10 +32,13 @@ module Main where
     import           System.Exit
     import qualified System.Log.Logger                     as L
     import qualified Yi.Rope                               as Yi -- Yi is a text editor written in Haskell and apparently we are using their implementation of strings.
+
+    import           Control.Monad.Trans.Except
     
     import Alice.Data.Instr
     import Alice.Import.Reader
     import Alice.Data.Text.Block
+    import Alice.Core.Position
     
     
     -- ---------------------------------------------------------------------
@@ -121,20 +124,11 @@ module Main where
       liftIO f
     
     -- ---------------------------------------------------------------------
-    
+  
     onSave fileName = do
-      commandLine <- return [InStr ISfile fileName]
-      currentDir <- getCurrentDirectory
-      initFile <- readInit (askIS ISinit "init.opt" commandLine)
-    
-      let initialOpts = initFile ++ commandLine
-          revInitialOpts = reverse initialOpts
-      U.logs "starting to parse stuff"
-      -- parse input text
-      text <- readText (askIS ISlibr "." revInitialOpts) $ map TI initialOpts
-      --text :: (Either E.NoMethodError [Text]) <- E.try $ readText (askIS ISlibr "." revInitialOpts) $ map TI initialOpts
+      result <- runExceptT $ parse fileName
       U.logs $ "made it after parse"
-      return text
+      return result
 
     -- | The single point that all events flow through, allowing management of state
     -- to stitch replies and requests together from the two asynchronous sides: lsp
@@ -194,8 +188,7 @@ module Main where
             reactorSend $ ReqShowMessage $ fmServerShowMessageRequest rid1 params
             -- [TODO] how would I retreive the information about which option was clicked?
     
-          -- -------------------------------
-    
+          -- ------------------------------
           HandlerRequest (NotDidOpenTextDocument notification) -> do
             liftIO $ U.logm "****** reactor: processing NotDidOpenTextDocument"
             let
@@ -416,5 +409,4 @@ module Main where
     responseHandlerCb _rin resp = do
       U.logs $ "******** got ResponseMessage, ignoring:" ++ show resp
     
-    -- ---------------------------------------------------------------------
-    
+      

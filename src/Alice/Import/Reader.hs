@@ -4,7 +4,7 @@ Authors: Andrei Paskevich (2001 - 2008), Steffen Frerix (2017 - 2018)
 Main text reading functions.
 -}
 
-module Alice.Import.Reader (readInit, readText) where
+module Alice.Import.Reader (readInit, readText, parse) where
 
 import Data.List
 import Control.Monad
@@ -12,6 +12,10 @@ import System.IO
 import System.IO.Error
 import System.Exit hiding (die)
 import Control.Exception
+import Control.Monad.Trans.Except
+import Control.Monad.Trans.Class
+import Control.Monad.Error.Class
+import Control.Monad.IO.Class
 
 import Alice.Data.Text.Block
 import Alice.Data.Instr
@@ -24,14 +28,19 @@ import Alice.Parser.Token
 import Alice.Parser.Combinators
 import Alice.Parser.Primitives
 import qualified Alice.Core.Message as Message
+import Alice.Parser.Error
 
+
+
+
+type Output a = ExceptT (String, SourcePos) IO a
 
 -- Init file parsing
 
-readInit :: String -> IO [Instr]
+readInit :: String -> Output [Instr]
 readInit "" = return []
 readInit file = do
-  input <- catch (readFile file) $ die file . ioeGetErrorString
+  input <- liftIO $ catch (readFile file) $ die file . ioeGetErrorString
   let tokens = tokenize (filePos file) input
       initialParserState = State () tokens noPos
   fst <$> launchParser instructionFile initialParserState
@@ -42,13 +51,13 @@ instructionFile = after (optLL1 [] $ chainLL1 instr) eof
 
 -- Reader loop
 
-readText :: String -> [Text] -> IO [Text]
+readText :: String -> [Text] -> Output [Text]
 readText pathToLibrary = reader pathToLibrary [] [State initFS noTokens noPos]
 
-reader :: String -> [String] -> [State FState] -> [Text] -> IO [Text]
+reader :: String -> [String] -> [State FState] -> [Text] -> Output [Text]
 
 reader _ _ _ [TI (InStr ISread file)] | isInfixOf ".." file =
-  die file "contains \"..\", not allowed"
+  liftIO $ die file "contains \"..\", not allowed"
 
 reader pathToLibrary doneFiles stateList [TI (InStr ISread file)] =
   reader pathToLibrary doneFiles stateList
@@ -56,7 +65,7 @@ reader pathToLibrary doneFiles stateList [TI (InStr ISread file)] =
 
 reader pathToLibrary doneFiles (pState:states) [TI (InStr ISfile file)]
   | file `elem` doneFiles = do
-      Message.outputMain Message.WRITELN (fileOnlyPos file) "already read, skipping"
+      liftIO $ Message.outputMain Message.WRITELN (fileOnlyPos file) "already read, skipping"
       (newText, newState) <- launchParser forthel pState
       reader pathToLibrary doneFiles (newState:states) newText
 
@@ -65,7 +74,7 @@ reader pathToLibrary doneFiles (pState:states) [TI (InStr ISfile file)] = do
         if   null file
         then getContents
         else readFile file
-  input <- catch gfl $ die file . ioeGetErrorString
+  input <- liftIO $ catch gfl $ die file . ioeGetErrorString
   let tokens = tokenize (filePos file) input
       st  = State ((stUser pState) { tvr_expr = [] }) tokens noPos
   (ntx, nps) <- launchParser forthel st
@@ -76,7 +85,7 @@ reader pathToLibrary doneFiles stateList (t:restText) =
   (t:) <$> reader pathToLibrary doneFiles stateList restText
 
 reader pathToLibrary doneFiles (pState:oldState:rest) [] = do
-  Message.outputParser Message.WRITELN (fileOnlyPos $ head doneFiles) "parsing successful"
+  liftIO $ Message.outputParser Message.WRITELN (fileOnlyPos $ head doneFiles) "parsing successful"
   let resetState = oldState {
         stUser = (stUser pState) {tvr_expr = tvr_expr $ stUser oldState}}
   (newText, newState) <- launchParser forthel resetState
@@ -87,10 +96,10 @@ reader _ _ _ [] = return []
 
 
 -- launch a parser in the IO monad
-launchParser :: Parser st a -> State st -> IO (a, State st)
+launchParser :: Parser st a -> State st -> Output (a, State st)
 launchParser parser state =
   case runP parser state of
-    Error err -> Message.outputParser Message.WRITELN noPos (show err) >> exitFailure
+    Error err -> lift (Message.outputParser Message.WRITELN noPos (show err)) >> throwE (show err, errorPos err)
     Ok [PR a st] -> return (a, st)
 
 
@@ -99,3 +108,18 @@ launchParser parser state =
 
 die :: String -> String -> IO a
 die fileName msg = Message.outputMain Message.WRITELN (fileOnlyPos fileName) msg >> exitFailure
+
+
+
+
+parse :: String -> ExceptT (String, SourcePos) IO [Text]
+parse fileName = do
+
+      let commandLine = [InStr ISfile fileName]
+      initFile <- readInit (askIS ISinit "init.opt" commandLine)
+
+      let initialOpts = initFile ++ commandLine
+          revInitialOpts = reverse initialOpts
+
+      -- parse input text
+      readText (askIS ISlibr "." revInitialOpts) $ map TI initialOpts
