@@ -207,7 +207,7 @@ module Main where
                                      . J.version
                 fileName =  J.uriToFilePath doc
             liftIO $ U.logs $ "********* fileName=" ++ show fileName
-            sendDiagnostics doc (Just 0) (T.pack $ show version)
+            sendDiag2 doc (Just 0) (T.pack $ show version) J.DsWarning (0,1,0,5)
     
           -- -------------------------------
     
@@ -233,23 +233,21 @@ module Main where
                 doc  = notification ^. J.params
                                      . J.textDocument
                                      . J.uri
-                --version = notification ^. J.params . J.textDocument . J.version
                 fileName = J.uriToFilePath doc
             liftIO $ U.logs $ "********* fileName=" ++ show fileName
-            -- run parser here.
             case fileName of
                 Just fileName ->  do
-                      blocks <- liftIO $ onSave fileName
-                      let text = T.pack $ show $ head blocks
+                      --blocks <- liftIO $ onSave fileName -- [TODO] this doesn't just generate JSON messages there are also some user-friendly traces that are getting through.
+                      --let text = T.pack $ show $ head blocks
                   --case text of
                     --Right result -> do
                       --pwd <- liftIO $ getCurrentDirectory
                       --let r = T.pack $ pwd
                       ---- make an info message that sends back the filename
-                      -- let ps = J.ShowMessageRequestParams J.MtInfo r Nothing
-                      -- rid1 <- nextLspReqId
-                      --reactorSend $ ReqShowMessage $ fmServerShowMessageRequest rid1 $ ps
-                      sendDiag2 doc Nothing "hello" J.DsError (3, 0, 4, 0)
+                      let ps = J.ShowMessageRequestParams J.MtInfo "save detected" Nothing
+                      rid1 <- nextLspReqId
+                      reactorSend $ ReqShowMessage $ fmServerShowMessageRequest rid1 $ ps
+                      sendDiag2 doc (Just 1) "hello" J.DsWarning (5, 1, 5, 5)
                     --Left e -> return ()
                 Nothing -> return ()
             return ()
@@ -330,7 +328,6 @@ module Main where
               Just we -> do
                 reply (J.Object mempty)
                 lid <- nextLspReqId
-                -- reactorSend $ J.RequestMessage "2.0" lid "workspace/applyEdit" (Just we)
                 reactorSend $ ReqApplyWorkspaceEdit $ fmServerApplyWorkspaceEditRequest lid we
               Nothing ->
                 reply (J.Object mempty)
@@ -349,7 +346,6 @@ module Main where
     
     -- | Analyze the file and send any diagnostics to the client in a
     -- "textDocument/publishDiagnostics" notification
-    -- @deprecated
     sendDiagnostics :: J.Uri -> Maybe Int -> T.Text -> R () ()
     sendDiagnostics fileUri version msg = do
       let
