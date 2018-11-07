@@ -26,6 +26,7 @@ dependencies:
 - text
 - data-default
 - unordered-containers
+- directory
 
 library:
   source-dirs:

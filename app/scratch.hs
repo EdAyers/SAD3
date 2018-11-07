@@ -8,31 +8,30 @@
 module Main where
 
     
-    
+    import           System.Directory
     import           Control.Concurrent
-    import           Control.Concurrent.STM.TChan     -- some kind of FIFO event queue monad something something.
+    import           Control.Concurrent.STM.TChan     -- transactional memory FIFO [https://hackage.haskell.org/package/stm-2.5.0.0/docs/Control-Monad-STM.html#t:STM]
     import qualified Control.Exception                     as E
-    import           Control.Lens
+    import           Control.Lens  -- lenses let you have `^.` and let you easily modify stuff inside deeply nested data.
     import           Control.Monad
     import           Control.Monad.IO.Class
     import           Control.Monad.Reader
-    import           Control.Monad.STM
-    import qualified Data.Aeson                            as J -- JSON parser
+    import           Control.Monad.STM -- the STM monad
+    import qualified Data.Aeson                            as J -- JSON parser. 
     import           Data.Default
     import qualified Data.HashMap.Strict                   as H -- package `unordered-containers`
-    import qualified Data.Text                             as T
+    import qualified Data.Text                             as T -- yet another implementation of strings.
     import qualified Language.Haskell.LSP.Control          as CTRL
     import qualified Language.Haskell.LSP.Core             as Core
     import           Language.Haskell.LSP.Diagnostics
-    -- import qualified Language.Haskell.LSP.Messages	       as M
     import           Language.Haskell.LSP.Messages   
-    import qualified Language.Haskell.LSP.Types            as J
-    import qualified Language.Haskell.LSP.Types.Lens       as J
+    import qualified Language.Haskell.LSP.Types            as J -- Special JSON object types
+    import qualified Language.Haskell.LSP.Types.Lens       as J -- ditto
     import qualified Language.Haskell.LSP.Utility          as U
     import           Language.Haskell.LSP.VFS
     import           System.Exit
     import qualified System.Log.Logger                     as L
-    import qualified Yi.Rope                               as Yi
+    import qualified Yi.Rope                               as Yi -- Yi is a text editor written in Haskell and apparently we are using their implementation of strings.
     
     import Alice.Data.Instr
     import Alice.Import.Reader
@@ -54,18 +53,19 @@ module Main where
     
     -- ---------------------------------------------------------------------
     
+    -- | The argument is the thing to run after the reactor has been started.
     run :: IO () -> IO Int
     run dispatcherProc = flip E.catches handlers $ do
-    
+      -- make a new transactional memory channel. This is a buffer with all of the incoming messages.
       rin  <- atomically newTChan :: IO (TChan ReactorInput)
     
       let
         dp lf = do
-          liftIO $ U.logs "main.run:dp entered"
+          U.logs "main.run:dp entered"
           _rpid  <- forkIO $ reactor lf rin
-          liftIO $ U.logs "main.run:dp tchan"
+          U.logs "main.run:dp tchan"
           dispatcherProc
-          liftIO $ U.logs "main.run:dp after dispatcherProc"
+          U.logs "main.run:dp after dispatcherProc"
           return Nothing
     
       flip E.finally finalProc $ do
@@ -124,13 +124,15 @@ module Main where
     
     onSave fileName = do
       commandLine <- return [InStr ISfile fileName]
+      currentDir <- getCurrentDirectory
       initFile <- readInit (askIS ISinit "init.opt" commandLine)
     
       let initialOpts = initFile ++ commandLine
           revInitialOpts = reverse initialOpts
       U.logs "starting to parse stuff"
       -- parse input text
-      text :: (Either E.NoMethodError [Text]) <- E.try $ readText (askIS ISlibr "." revInitialOpts) $ map TI initialOpts
+      text <- readText (askIS ISlibr "." revInitialOpts) $ map TI initialOpts
+      --text :: (Either E.NoMethodError [Text]) <- E.try $ readText (askIS ISlibr "." revInitialOpts) $ map TI initialOpts
       U.logs $ "made it after parse"
       return text
 
@@ -139,8 +141,9 @@ module Main where
     -- server and backend compiler
     reactor :: Core.LspFuncs () -> TChan ReactorInput -> IO ()
     reactor lf inp = do
-      liftIO $ U.logs "reactor:entered"
+      U.logs "reactor:entered"
       flip runReaderT lf $ forever $ do
+        -- pull the next message from the message queue. Note that if it is empty this thread blocks.
         inval <- liftIO $ atomically $ readTChan inp
         case inval of
     
@@ -183,11 +186,13 @@ module Main where
     
             -- example of showMessageRequest
             let
-              params = J.ShowMessageRequestParams J.MtWarning "choose an option for XXX"
+              params = J.ShowMessageRequestParams J.MtWarning "choose an option for YYY"
                                (Just [J.MessageActionItem "option a", J.MessageActionItem "option b"])
-            rid1 <- nextLspReqId
+            -- make a new reference id.
+            rid1 <- nextLspReqId 
     
             reactorSend $ ReqShowMessage $ fmServerShowMessageRequest rid1 params
+            -- [TODO] how would I retreive the information about which option was clicked?
     
           -- -------------------------------
     
@@ -234,15 +239,17 @@ module Main where
             -- run parser here.
             case fileName of
                 Just fileName ->  do
-                  --text <- liftIO $ onSave fileName
+                      blocks <- liftIO $ onSave fileName
+                      let text = T.pack $ show $ head blocks
                   --case text of
                     --Right result -> do
-                      let r = T.pack $ fileName
+                      --pwd <- liftIO $ getCurrentDirectory
+                      --let r = T.pack $ pwd
                       ---- make an info message that sends back the filename
-                      --let ps = J.ShowMessageRequestParams J.MtInfo r Nothing
-                      --rid1 <- nextLspReqId
+                      -- let ps = J.ShowMessageRequestParams J.MtInfo r Nothing
+                      -- rid1 <- nextLspReqId
                       --reactorSend $ ReqShowMessage $ fmServerShowMessageRequest rid1 $ ps
-                      sendDiagnostics doc Nothing r
+                      sendDiag2 doc Nothing "hello" J.DsError (3, 0, 4, 0)
                     --Left e -> return ()
                 Nothing -> return ()
             return ()
@@ -342,6 +349,7 @@ module Main where
     
     -- | Analyze the file and send any diagnostics to the client in a
     -- "textDocument/publishDiagnostics" notification
+    -- @deprecated
     sendDiagnostics :: J.Uri -> Maybe Int -> T.Text -> R () ()
     sendDiagnostics fileUri version msg = do
       let
@@ -355,6 +363,20 @@ module Main where
                 ]
       publishDiagnostics 100 fileUri version (partitionBySource diags)
     
+    sendDiag2 :: J.Uri -> Maybe Int -> T.Text -> J.DiagnosticSeverity -> (Int,Int,Int,Int) -> R () ()
+    sendDiag2 fileUri version msg sev (sl,sc,fl,fc) = do
+        let
+          diags = [
+            J.Diagnostic
+                  (J.Range (J.Position sl sc) (J.Position fl fc))
+                  (Just sev)  -- severity
+                  Nothing  -- code
+                  (Just "forthel-sendDiagnostics") -- source
+                  msg
+                  (Just (J.List []))
+            ]
+        publishDiagnostics 100 fileUri version (partitionBySource diags)
+
     -- ---------------------------------------------------------------------
     
     syncOptions :: J.TextDocumentSyncOptions
