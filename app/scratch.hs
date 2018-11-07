@@ -7,16 +7,15 @@
     {-# LANGUAGE ScopedTypeVariables #-}
 module Main where
 
-    
     import           System.Directory
     import           Control.Concurrent
-    import           Control.Concurrent.STM.TChan     -- transactional memory FIFO [https://hackage.haskell.org/package/stm-2.5.0.0/docs/Control-Monad-STM.html#t:STM]
+    import           Control.Concurrent.STM.TChan               -- transactional memory FIFO. Read the paper link at: https://hackage.haskell.org/package/stm-2.5.0.0/docs/Control-Monad-STM.html#t:STM
     import qualified Control.Exception                     as E
-    import           Control.Lens  -- lenses let you have `^.` and let you easily modify stuff inside deeply nested data.
+    import           Control.Lens
     import           Control.Monad
     import           Control.Monad.IO.Class
     import           Control.Monad.Reader
-    import           Control.Monad.STM -- the STM monad
+    import           Control.Monad.STM                          -- Shared Transactional Memory Monad.
     import qualified Data.Aeson                            as J -- JSON parser. 
     import           Data.Default
     import qualified Data.HashMap.Strict                   as H -- package `unordered-containers`
@@ -26,7 +25,7 @@ module Main where
     import           Language.Haskell.LSP.Diagnostics
     import           Language.Haskell.LSP.Messages   
     import qualified Language.Haskell.LSP.Types            as J -- Special JSON object types
-    import qualified Language.Haskell.LSP.Types.Lens       as J -- ditto
+    import qualified Language.Haskell.LSP.Types.Lens       as J -- Special JSON object types
     import qualified Language.Haskell.LSP.Utility          as U
     import           Language.Haskell.LSP.VFS
     import           System.Exit
@@ -48,6 +47,8 @@ module Main where
     -- ---------------------------------------------------------------------
     --
     
+    servername = "SAD"
+
     main :: IO ()
     main = do
       run (return ()) >>= \case
@@ -56,7 +57,7 @@ module Main where
     
     -- ---------------------------------------------------------------------
     
-    -- | The argument is the thing to run after the reactor has been started.
+    -- | The argument is a callback to run after the reactor has been started.
     run :: IO () -> IO Int
     run dispatcherProc = flip E.catches handlers $ do
       -- make a new transactional memory channel. This is a buffer with all of the incoming messages.
@@ -72,8 +73,8 @@ module Main where
           return Nothing
     
       flip E.finally finalProc $ do
-        Core.setupLogger (Just "/tmp/lsp-hello.log") [] L.DEBUG
-        CTRL.run (return (Right ()), dp) (lspHandlers rin) lspOptions (Just "/tmp/lsp-hello-session.log")
+        Core.setupLogger (Just "/tmp/SAD.log") [] L.DEBUG
+        CTRL.run (return (Right ()), dp) (lspHandlers rin) lspOptions (Just "/tmp/SAD-session.log")
     
       where
         handlers = [ E.Handler ioExcept
@@ -125,6 +126,8 @@ module Main where
     
     -- ---------------------------------------------------------------------
   
+    -- | [HACK] This is our quick method to run the parser and get some results that can be used to give diagnostic information.
+    onSave :: String -> IO (Either (String, SourcePos) [Text])
     onSave fileName = do
       result <- runExceptT $ parse fileName
       U.logs $ "made it after parse"
@@ -172,23 +175,24 @@ module Main where
              }
             -}
             let
-              registration = J.Registration "lsp-hello-registered" J.WorkspaceExecuteCommand Nothing
+              registration = J.Registration "SAD-registered" J.WorkspaceExecuteCommand Nothing
             let registrations = J.RegistrationParams (J.List [registration])
             rid <- nextLspReqId
     
             reactorSend $ ReqRegisterCapability $ fmServerRegisterCapabilityRequest rid registrations
     
-            -- example of showMessageRequest
-            let
-              params = J.ShowMessageRequestParams J.MtWarning "choose an option for YYY"
-                               (Just [J.MessageActionItem "option a", J.MessageActionItem "option b"])
-            -- make a new reference id.
-            rid1 <- nextLspReqId 
+            -- -- example of showMessageRequest
+            -- let
+            --   params = J.ShowMessageRequestParams J.MtWarning "choose an option for YYY"
+            --                    (Just [J.MessageActionItem "option a", J.MessageActionItem "option b"])
+            -- -- make a new reference id.
+            -- rid1 <- nextLspReqId 
     
-            reactorSend $ ReqShowMessage $ fmServerShowMessageRequest rid1 params
-            -- [TODO] how would I retreive the information about which option was clicked?
+            -- reactorSend $ ReqShowMessage $ fmServerShowMessageRequest rid1 params
+            -- -- [TODO] how would I retreive the information about which option was clicked?
     
           -- ------------------------------
+          {- This is called when a text document opens, it is a good place to initialise state for a document. -}
           HandlerRequest (NotDidOpenTextDocument notification) -> do
             liftIO $ U.logm "****** reactor: processing NotDidOpenTextDocument"
             let
@@ -200,10 +204,9 @@ module Main where
                                      . J.version
                 fileName =  J.uriToFilePath doc
             liftIO $ U.logs $ "********* fileName=" ++ show fileName
-            sendDiag2 doc (Just 0) (T.pack $ show version) J.DsWarning (0,1,0,5)
     
           -- -------------------------------
-    
+          {- [NOTE] in order for this to fire you need to uncomment the relevant line in `lspHandlers`. -}
           HandlerRequest (NotDidChangeTextDocument notification) -> do
             let doc :: J.Uri
                 doc  = notification ^. J.params
@@ -230,41 +233,22 @@ module Main where
             liftIO $ U.logs $ "********* fileName=" ++ show fileName
             case fileName of
                 Just fileName ->  do
-                      -- let ps = J.ShowMessageRequestParams J.MtInfo "save detected" Nothing
-                      -- rid1 <- nextLspReqId
-                      -- reactorSend $ ReqShowMessage $ fmServerShowMessageRequest rid1 $ ps
-                      result <- liftIO $ onSave fileName -- [TODO] this doesn't just generate JSON messages there are also some user-friendly traces that are getting through.
+                      --sendMessage J.MtInfo "save detected"
+                      result <- liftIO $ onSave fileName
                       case result of
-                        Left (msg,pos) -> do
-                          --let text = T.pack $ show $ head blocks
+                        Left (msg,pos) -> do -- error case
                           liftIO $ U.logs $ show pos
-                          sendDiag2 doc (Just 1) (T.pack msg) J.DsError (sourceLine pos - 1, sourceColumn pos - 1, sourceLine pos - 1, sourceColumn pos + 1)
-                        Right happy -> do
-                          let ps = J.ShowMessageRequestParams J.MtInfo "parse successful" Nothing
-                          rid1 <- nextLspReqId
-                          reactorSend $ ReqShowMessage $ fmServerShowMessageRequest rid1 $ ps
+                          sendADiagnostic doc (Just 1) (T.pack msg) J.DsError (sourceLine pos - 1, sourceColumn pos - 1, sourceLine pos - 1, sourceColumn pos + 1)
+                        Right happy -> do -- parse worked
                           clearDiagnostics doc Nothing
+                          sendMessage J.MtInfo "parse successful"
+                          -- [TODO] now verify!
                 Nothing -> return ()
             return ()
     
-          -- -------------------------------
-    
-          HandlerRequest (ReqRename req) -> do
-            liftIO $ U.logs $ "reactor:got RenameRequest:" ++ show req
-            let
-                _params = req ^. J.params
-                _doc  = _params ^. J.textDocument . J.uri
-                J.Position _l _c' = _params ^. J.position
-                _newName  = _params ^. J.newName
-    
-            let we = J.WorkspaceEdit
-                        Nothing -- "changes" field is deprecated
-                        (Just (J.List [])) -- populate with actual changes from the rename
-            let rspMsg = Core.makeResponseMessage req we
-            reactorSend $ RspRename rspMsg
-    
           -- ------------------------------- hover request.
     
+          {- This is when you hover over a symbol. [NOTE] in order for this to fire you need to uncomment the relevant line in `lspHandlers`. -}
           HandlerRequest (ReqHover req) -> do
             liftIO $ U.logs $ "reactor:got HoverRequest:" ++ show req
             let J.TextDocumentPositionParams _doc pos = req ^. J.params
@@ -272,11 +256,18 @@ module Main where
     
             let
               ht = Just $ J.Hover ms (Just range)
-              ms = J.List [J.CodeString $ J.LanguageString "lsp-hello" (T.pack $ show req) ]
+              text = "TYPE INFO GOES HERE" -- (T.pack $ show req) -- just echo the request.
+              ms = J.List [J.CodeString $ J.LanguageString servername text ]
               range = J.Range pos pos
             reactorSend $ RspHover $ Core.makeResponseMessage req ht
     
           -- -------------------------------
+
+          {- A CodeAction is a change that the language server offers to make to the source. For example something like "add the missing `import`".
+              You can get vscode to list these using `Cmd+.`.
+              This just lets the system know what the possible changes are.
+              [NOTE] in order for this to fire you need to uncomment the relevant line in `lspHandlers`. 
+          -}
     
           HandlerRequest (ReqCodeAction req) -> do
             liftIO $ U.logs $ "reactor:got CodeActionRequest:" ++ show req
@@ -285,27 +276,30 @@ module Main where
                 -- fileName = drop (length ("file://"::String)) doc
                 -- J.Range from to = J._range (params :: J.CodeActionParams)
                 (J.List diags) = params ^. J.context . J.diagnostics
-    
-            let
-              -- makeCommand only generates commands for diagnostics whose source is us
-              makeCommand (J.Diagnostic (J.Range start _) _s _c (Just "lsp-hello") _m _l) = [J.Command title cmd cmdparams]
-                where
-                  title = "Apply LSP hello command:" <> head (T.lines _m)
-                  -- NOTE: the cmd needs to be registered via the InitializeResponse message. See lspOptions above
-                  cmd = "lsp-hello-command"
-                  -- need 'file' and 'start_pos'
-                  args = J.List
-                          [ J.Object $ H.fromList [("file",     J.Object $ H.fromList [("textDocument",J.toJSON doc)])]
-                          , J.Object $ H.fromList [("start_pos",J.Object $ H.fromList [("position",    J.toJSON start)])]
-                          ]
-                  cmdparams = Just args
-              makeCommand (J.Diagnostic _r _s _c _source _m _l) = []
-            let body = J.List $ map J.CACommand $ concatMap makeCommand diags
+            -- let
+            --   -- makeCommand only generates commands for diagnostics whose source is us
+            --   makeCommand (J.Diagnostic (J.Range start _) _s _c (Just _) _m _l) = [J.Command title cmd cmdparams]
+            --     where
+            --       title = "Apply LSP hello command:" <> head (T.lines _m)
+            --       -- [NOTE]: the cmd needs to be registered via the InitializeResponse message. See lspOptions above
+            --       cmd = "SAD-command"
+            --       -- need 'file' and 'start_pos'
+            --       args = J.List
+            --               [ J.Object $ H.fromList [("file",     J.Object $ H.fromList [("textDocument",J.toJSON doc)])]
+            --               , J.Object $ H.fromList [("start_pos",J.Object $ H.fromList [("position",    J.toJSON start)])]
+            --               ]
+            --       cmdparams = Just args
+            --   makeCommand (J.Diagnostic _r _s _c _source _m _l) = []
+            -- [NOTE] for now, don't return any code actions.
+            let body = J.List [] -- $ map J.CACommand $ concatMap makeCommand diags
                 rsp = Core.makeResponseMessage req body
             reactorSend $ RspCodeAction rsp
     
           -- -------------------------------
     
+          {- Once the user has clicked on the command, it sends back an execute command request and we in turn send back a suggested edit.
+          [NOTE] in order for this to fire you need to uncomment the relevant line in `lspHandlers`. 
+          -}
           HandlerRequest (ReqExecuteCommand req) -> do
             liftIO $ U.logs "reactor:got ExecuteCommandRequest:" -- ++ show req
             let params = req ^. J.params
@@ -315,8 +309,8 @@ module Main where
     
             let
               reply v = reactorSend $ RspExecuteCommand $ Core.makeResponseMessage req v
-            -- When we get a RefactorResult or HieDiff, we need to send a
-            -- separate WorkspaceEdit Notification
+              -- When we get a RefactorResult or HieDiff, we need to send a
+              -- separate WorkspaceEdit Notification
               r = J.List [] :: J.List Int
             liftIO $ U.logs $ "ExecuteCommand response got:r=" ++ show r
             case toWorkspaceEdit r of
@@ -339,32 +333,27 @@ module Main where
     
     -- ---------------------------------------------------------------------
     
-    -- | Analyze the file and send any diagnostics to the client in a
-    -- "textDocument/publishDiagnostics" notification
-    sendDiagnostics :: J.Uri -> Maybe Int -> T.Text -> R () ()
-    sendDiagnostics fileUri version msg = do
-      let
-        diags = [J.Diagnostic
-                  (J.Range (J.Position 0 1) (J.Position 0 5))
-                  (Just J.DsWarning)  -- severity
-                  Nothing  -- code
-                  (Just "lsp-hello") -- source
-                  msg
-                  (Just (J.List []))
-                ]
-      publishDiagnostics 100 fileUri version (partitionBySource diags)
-    
+    sendMessage :: J.MessageType -> T.Text -> R () ()
+    sendMessage severity text = do
+      let ps = J.ShowMessageRequestParams severity text Nothing
+      rid1 <- nextLspReqId
+      reactorSend $ ReqShowMessage $ fmServerShowMessageRequest rid1 $ ps
+
+    {-| Remove all diagnostics. -}
     clearDiagnostics :: J.Uri -> J.TextDocumentVersion -> R () ()
     clearDiagnostics fileUri version = publishDiagnostics 100 fileUri version (partitionBySource [])
-    sendDiag2 :: J.Uri -> Maybe Int -> T.Text -> J.DiagnosticSeverity -> (Int,Int,Int,Int) -> R () ()
-    sendDiag2 fileUri version msg sev (sl,sc,fl,fc) = do
+    {-|  Sends a single diagnostic message.
+         Remember that the client doesn't do any diagnostic merging so you have to send the entire list for a particular file every time.
+    -}
+    sendADiagnostic :: J.Uri -> Maybe Int -> T.Text -> J.DiagnosticSeverity -> (Int,Int,Int,Int) -> R () ()
+    sendADiagnostic fileUri version msg sev (sl,sc,fl,fc) = do
         let
           diags = [
             J.Diagnostic
                   (J.Range (J.Position sl sc) (J.Position fl fc))
                   (Just sev)  -- severity
                   Nothing  -- code
-                  (Just "forthel-sendDiagnostics") -- source
+                  (Just servername) -- source
                   msg
                   (Just (J.List []))
             ]
@@ -383,22 +372,21 @@ module Main where
     
     lspOptions :: Core.Options
     lspOptions = def { Core.textDocumentSync = Just syncOptions
-                     , Core.executeCommandProvider = Just (J.ExecuteCommandOptions (J.List ["lsp-hello-command"]))
+                     , Core.executeCommandProvider = Just (J.ExecuteCommandOptions (J.List ["SAD-command"]))
                      }
-    
+    {-| This is where you say what the capabilities are of the language server. -}
     lspHandlers :: TChan ReactorInput -> Core.Handlers
     lspHandlers rin
       = def { Core.initializedHandler                       = Just $ passHandler rin NotInitialized
-            , Core.renameHandler                            = Just $ passHandler rin ReqRename
-            , Core.hoverHandler                             = Just $ passHandler rin ReqHover
+            --, Core.hoverHandler                             = Just $ passHandler rin ReqHover
             , Core.didOpenTextDocumentNotificationHandler   = Just $ passHandler rin NotDidOpenTextDocument
             , Core.didSaveTextDocumentNotificationHandler   = Just $ passHandler rin NotDidSaveTextDocument
-            , Core.didChangeTextDocumentNotificationHandler = Just $ passHandler rin NotDidChangeTextDocument
+            --, Core.didChangeTextDocumentNotificationHandler = Just $ passHandler rin NotDidChangeTextDocument
             , Core.didCloseTextDocumentNotificationHandler  = Just $ passHandler rin NotDidCloseTextDocument
             , Core.cancelNotificationHandler                = Just $ passHandler rin NotCancelRequestFromClient
             , Core.responseHandler                          = Just $ responseHandlerCb rin
-            , Core.codeActionHandler                        = Just $ passHandler rin ReqCodeAction
-            , Core.executeCommandHandler                    = Just $ passHandler rin ReqExecuteCommand
+            --, Core.codeActionHandler                        = Just $ passHandler rin ReqCodeAction
+            --, Core.executeCommandHandler                    = Just $ passHandler rin ReqExecuteCommand
             }
     
     -- ---------------------------------------------------------------------
