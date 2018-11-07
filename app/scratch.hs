@@ -230,18 +230,20 @@ module Main where
             liftIO $ U.logs $ "********* fileName=" ++ show fileName
             case fileName of
                 Just fileName ->  do
-                      --blocks <- liftIO $ onSave fileName -- [TODO] this doesn't just generate JSON messages there are also some user-friendly traces that are getting through.
-                      --let text = T.pack $ show $ head blocks
-                  --case text of
-                    --Right result -> do
-                      --pwd <- liftIO $ getCurrentDirectory
-                      --let r = T.pack $ pwd
-                      ---- make an info message that sends back the filename
-                      let ps = J.ShowMessageRequestParams J.MtInfo "save detected" Nothing
-                      rid1 <- nextLspReqId
-                      reactorSend $ ReqShowMessage $ fmServerShowMessageRequest rid1 $ ps
-                      sendDiag2 doc (Just 1) "hello" J.DsWarning (5, 1, 5, 5)
-                    --Left e -> return ()
+                      -- let ps = J.ShowMessageRequestParams J.MtInfo "save detected" Nothing
+                      -- rid1 <- nextLspReqId
+                      -- reactorSend $ ReqShowMessage $ fmServerShowMessageRequest rid1 $ ps
+                      result <- liftIO $ onSave fileName -- [TODO] this doesn't just generate JSON messages there are also some user-friendly traces that are getting through.
+                      case result of
+                        Left (msg,pos) -> do
+                          --let text = T.pack $ show $ head blocks
+                          liftIO $ U.logs $ show pos
+                          sendDiag2 doc (Just 1) (T.pack msg) J.DsError (sourceLine pos - 1, sourceColumn pos - 1, sourceLine pos - 1, sourceColumn pos + 1)
+                        Right happy -> do
+                          let ps = J.ShowMessageRequestParams J.MtInfo "parse successful" Nothing
+                          rid1 <- nextLspReqId
+                          reactorSend $ ReqShowMessage $ fmServerShowMessageRequest rid1 $ ps
+                          clearDiagnostics doc Nothing
                 Nothing -> return ()
             return ()
     
@@ -352,6 +354,8 @@ module Main where
                 ]
       publishDiagnostics 100 fileUri version (partitionBySource diags)
     
+    clearDiagnostics :: J.Uri -> J.TextDocumentVersion -> R () ()
+    clearDiagnostics fileUri version = publishDiagnostics 100 fileUri version (partitionBySource [])
     sendDiag2 :: J.Uri -> Maybe Int -> T.Text -> J.DiagnosticSeverity -> (Int,Int,Int,Int) -> R () ()
     sendDiag2 fileUri version msg sev (sl,sc,fl,fc) = do
         let
