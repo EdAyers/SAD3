@@ -34,17 +34,8 @@ library:
     - Isabelle/src
 
 executables:
-  # SAD3-exe:
-  #   main:                Main.hs
-  #   source-dirs:         app
-  #   ghc-options:
-  #   - -threaded
-  #   - -rtsopts
-  #   - -with-rtsopts=-N
-  #   dependencies:
-  #   - SAD3
-  watch-exe:
-    main:                scratch.hs
+  SAD:
+    main:                Main.hs
     source-dirs:         app
     ghc-options:
     - -threaded
@@ -55,7 +46,7 @@ executables:
     
 
 tests:
-  SAD3-test:
+  SAD-test:
     main:                Spec.hs
     source-dirs:         test
     ghc-options:
@@ -63,4 +54,4 @@ tests:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
-    - SAD3
+    - SAD

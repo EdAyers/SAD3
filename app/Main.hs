@@ -4,7 +4,7 @@ Authors: Andrei Paskevich (2001 - 2008), Steffen Frerix (2017 - 2018)
 Parse command line and run verifier.
 -}
 
-module OLDMAIN where
+module Main where
 
 import Data.IORef
 import Data.Time
@@ -13,6 +13,8 @@ import System.Console.GetOpt
 import System.Environment
 import System.Exit hiding (die)
 import System.IO
+import Control.Monad.IO.Class
+
 import qualified Data.IntMap.Strict as IM
 
 
@@ -24,22 +26,36 @@ import Alice.Data.Instr
 import Alice.Data.Text.Block
 import Alice.Export.Base
 import Alice.Import.Reader
+import LSP
+import           Control.Monad.Trans.Except
 
 {- and what is the use of a book without pictures or conversation? -}
 
-main :: IO ()
-main  = do
+liftOutput :: ExceptT (String, SourcePos) IO a -> IO a
+liftOutput m = do
+  r <- runExceptT m
+  case r of
+    (Left (s,p)) -> error s
+    (Right a) -> return a
+
+main :: IO() 
+main = do
+  args <- getArgs
+  if ("--lsp" `elem` args) then lsp else batch
+
+batch :: IO ()
+batch  = do
+  commandLine <- readOpts
   startTime <- getCurrentTime
   hSetBuffering stdout LineBuffering
 
-  commandLine <- readOpts
-  initFile <- readInit (askIS ISinit "init.opt" commandLine)
+  initFile <- liftOutput $ readInit (askIS ISinit "init.opt" commandLine)
 
   let initialOpts = initFile ++ commandLine
       revInitialOpts = reverse initialOpts
 
   -- parse input text
-  text <- readText (askIS ISlibr "." revInitialOpts) $ map TI initialOpts
+  text <- liftOutput $ readText (askIS ISlibr "." revInitialOpts) $ map TI initialOpts
   -- if -T is passed as an option, only print the text and exit
   when (askIB IBtext False revInitialOpts) $ onlyTranslate startTime text
   -- read provers.dat

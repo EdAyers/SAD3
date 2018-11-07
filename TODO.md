@@ -1,12 +1,8 @@
 ## TODO ##
 
-# Watch #
+# LSP #
 
-* rename `watch-exe`, ideally there should be a special mode of Main that enters watch mode.
-* Remove demo example features from watch mode.
-* On save overlay any errors into the document.
-* Incremental parsing and verification. 
-
+* Incremental Parsing
 
 # Admin #
 

@@ -5,7 +5,7 @@
     {-# LANGUAGE MultiWayIf          #-}
     {-# LANGUAGE OverloadedStrings   #-}
     {-# LANGUAGE ScopedTypeVariables #-}
-module Main where
+module LSP where
 
     import           System.Directory
     import           Control.Concurrent
@@ -33,7 +33,7 @@ module Main where
     import qualified Yi.Rope                               as Yi -- Yi is a text editor written in Haskell and apparently we are using their implementation of strings.
 
     import           Control.Monad.Trans.Except
-    
+  
     import Alice.Data.Instr
     import Alice.Import.Reader
     import Alice.Data.Text.Block
@@ -49,8 +49,8 @@ module Main where
     
     servername = "SAD"
 
-    main :: IO ()
-    main = do
+    lsp :: IO ()
+    lsp = do
       run (return ()) >>= \case
         0 -> exitSuccess
         c -> exitWith . ExitFailure $ c
@@ -65,11 +65,11 @@ module Main where
     
       let
         dp lf = do
-          U.logs "main.run:dp entered"
+          U.logs "lsp.run:dp entered"
           _rpid  <- forkIO $ reactor lf rin
-          U.logs "main.run:dp tchan"
+          U.logs "lsp.run:dp tchan"
           dispatcherProc
-          U.logs "main.run:dp after dispatcherProc"
+          U.logs "lsp.run:dp after dispatcherProc"
           return Nothing
     
       flip E.finally finalProc $ do
