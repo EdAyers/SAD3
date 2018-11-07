@@ -65,7 +65,7 @@ reader pathToLibrary doneFiles stateList [TI (InStr ISread file)] =
 
 reader pathToLibrary doneFiles (pState:states) [TI (InStr ISfile file)]
   | file `elem` doneFiles = do
-      liftIO $ Message.outputMain Message.WRITELN (fileOnlyPos file) "already read, skipping"
+      --liftIO $ Message.outputMain Message.WRITELN (fileOnlyPos file) "already read, skipping"
       (newText, newState) <- launchParser forthel pState
       reader pathToLibrary doneFiles (newState:states) newText
 
@@ -85,7 +85,6 @@ reader pathToLibrary doneFiles stateList (t:restText) =
   (t:) <$> reader pathToLibrary doneFiles stateList restText
 
 reader pathToLibrary doneFiles (pState:oldState:rest) [] = do
-  liftIO $ Message.outputParser Message.WRITELN (fileOnlyPos $ head doneFiles) "parsing successful"
   let resetState = oldState {
         stUser = (stUser pState) {tvr_expr = tvr_expr $ stUser oldState}}
   (newText, newState) <- launchParser forthel resetState
@@ -99,7 +98,7 @@ reader _ _ _ [] = return []
 launchParser :: Parser st a -> State st -> Output (a, State st)
 launchParser parser state =
   case runP parser state of
-    Error err -> lift (Message.outputParser Message.WRITELN noPos (show err)) >> throwE (show err, errorPos err)
+    Error err -> throwE (show err, errorPos err)
     Ok [PR a st] -> return (a, st)
 
 
@@ -107,7 +106,7 @@ launchParser parser state =
 -- Service stuff
 
 die :: String -> String -> IO a
-die fileName msg = Message.outputMain Message.WRITELN (fileOnlyPos fileName) msg >> exitFailure
+die fileName msg = exitFailure
 
 
 
