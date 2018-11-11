@@ -381,7 +381,7 @@ module LSP where
             --, Core.hoverHandler                             = Just $ passHandler rin ReqHover
             , Core.didOpenTextDocumentNotificationHandler   = Just $ passHandler rin NotDidOpenTextDocument
             , Core.didSaveTextDocumentNotificationHandler   = Just $ passHandler rin NotDidSaveTextDocument
-            --, Core.didChangeTextDocumentNotificationHandler = Just $ passHandler rin NotDidChangeTextDocument
+            , Core.didChangeTextDocumentNotificationHandler = Just $ passHandler rin NotDidChangeTextDocument
             , Core.didCloseTextDocumentNotificationHandler  = Just $ passHandler rin NotDidCloseTextDocument
             , Core.cancelNotificationHandler                = Just $ passHandler rin NotCancelRequestFromClient
             , Core.responseHandler                          = Just $ responseHandlerCb rin
