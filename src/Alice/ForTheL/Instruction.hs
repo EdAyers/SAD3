@@ -52,12 +52,14 @@ readInstr = readIC -|- readII -|- readIB -|- readIS -|- readIP
     readIS = liftM2 InStr (readIX setIS) readStr
     readIP = liftM2 InPar (readIX setIP) readPar
 
+readInt :: Parser st Int
 readInt = try $ readStr >>= intCheck
   where
     intCheck s = case reads s of
       ((n,[]):_) | n >= 0 -> return n
       _                   -> mzero
 
+readBin :: Parser st Bool
 readBin = try $ readStr >>= binCheck
   where
     binCheck "yes" = return True
@@ -66,9 +68,11 @@ readBin = try $ readStr >>= binCheck
     binCheck "off" = return False
     binCheck _     = mzero
 
+readStr :: Parser st [Char]
 readStr = liftM concat readPar
 
 
+readPar :: Parser st [String]
 readPar = chainLL1 notClosingBrk
   where
     notClosingBrk = tokenPrim notCl

@@ -8,14 +8,15 @@ module Alice.Data.Instr where
 
 import Control.Monad
 
-data Instr  = InCom InCom           -- Instruction Command
-            | InInt InInt Int       -- Instruction Integer
-            | InBin InBin Bool      -- Instruction Binary
-            | InStr InStr String    -- Instruction String
-            | InPar InPar [String]  -- Instruction with multiple parameters
+-- | Instructions are extra directives that the user can give to the prover. Eg things like `[prove off]`.
+data Instr  = InCom InCom           -- ^ Instruction Command
+            | InInt InInt Int       -- ^ Instruction Integer
+            | InBin InBin Bool      -- ^ Instruction Binary
+            | InStr InStr String    -- ^ Instruction String
+            | InPar InPar [String]  -- ^ Instruction with multiple parameters
             deriving Show
 
-{- drop type for command, integer, binary and string instruction types -}
+{-| drop type for command, integer, binary and string instruction types -}
 data Idrop  = IdCom InCom
             | IdInt InInt
             | IdBin InBin
@@ -25,56 +26,61 @@ data Idrop  = IdCom InCom
 
 -- Instructions
 
-data InCom  = ICexit  --  exit
-            | ICPths  --  print current thesis
-            | ICPcnt  --  print current context
-            | ICPflt  --  print simplified top-level context
+-- | An instruction name that takes no arguments
+data InCom  = ICexit  -- ^ exit
+            | ICPths  -- ^ print current thesis
+            | ICPcnt  -- ^ print current context
+            | ICPflt  -- ^ print simplified top-level context
             | ICRuls
             deriving (Eq,Show)
 
-data InInt  = IItlim  --  time limit per prover launch  (3 sec)
-            | IIdpth  --  number of reasoner iterations (7)
-            | IIchtl  --  time limit for checker's tasks (1 sec)
-            | IIchdp  --  depth limit for checker's tasks (3)
+-- | An instruction name that takes an integer argument.
+data InInt  = IItlim  -- ^ time limit per prover launch  (3 sec)
+            | IIdpth  -- ^ number of reasoner iterations (7)
+            | IIchtl  -- ^ time limit for checker's tasks (1 sec)
+            | IIchdp  -- ^ depth limit for checker's tasks (3)
             deriving (Eq,Show)
 
-data InBin  = IBprov  --  prove goals (yes)
-            | IBchck  --  look for applicable definitions (yes)
-            | IBsign  --  rename symbols with diverging defs (yes)
-            | IBinfo  --  accumulate evidences (yes)
-            | IBthes  --  modify thesis (yes)
-            | IBfilt  --  simplify the context (yes)
-            | IBskip  --  ignore failed goals (no)
-            | IBflat  --  do not descend into proofs (no)
-            | IBPgls  --  print current goal (yes)
-            | IBPrsn  --  print reasoner's log (no)
-            | IBPsct  --  print current sentence (no)
-            | IBPchk  --  print definition checks (no)
-            | IBPprv  --  print prover's log (no)
-            | IBPunf  --  print definition unfolds (no)
-            | IBPtsk  --  print inference tasks (no)
-            | IBPdmp  --  print tasks in prover's syntax (no)
-            | IBtext  --  translation only (comline only)
-            | IBverb  --  verbosity control (comline only)
-            | IBhelp  --  print help (comline only)
-            | IBPsmp  --  print simplifier log (no)
-            | IBPths  --  print thesis development (no)
-            | IBOnto  --  use ontological reduction (no)
-            | IBUnfl  --  general unfolding (on)
-            | IBUnfs  --  general unfolding of sets and functions
-            | IBUfdl  --  unfold the whole low level context (yes)
-            | IBUfds  --  unfold set and function conditions in low level (no)
-            | IBOnch  --  enable ontological reduction for checks (off)
+-- | An off/on instruction name.
+data InBin  = IBprov  -- ^ prove goals (yes)
+            | IBchck  -- ^ look for applicable definitions (yes)
+            | IBsign  -- ^ rename symbols with diverging defs (yes)
+            | IBinfo  -- ^ accumulate evidences (yes)
+            | IBthes  -- ^ modify thesis (yes)
+            | IBfilt  -- ^ simplify the context (yes)
+            | IBskip  -- ^ ignore failed goals (no)
+            | IBflat  -- ^ do not descend into proofs (no)
+            | IBPgls  -- ^ print current goal (yes)
+            | IBPrsn  -- ^ print reasoner's log (no)
+            | IBPsct  -- ^ print current sentence (no)
+            | IBPchk  -- ^ print definition checks (no)
+            | IBPprv  -- ^ print prover's log (no)
+            | IBPunf  -- ^ print definition unfolds (no)
+            | IBPtsk  -- ^ print inference tasks (no)
+            | IBPdmp  -- ^ print tasks in prover's syntax (no)
+            | IBtext  -- ^ translation only (comline only)
+            | IBverb  -- ^ verbosity control (comline only)
+            | IBhelp  -- ^ print help (comline only)
+            | IBPsmp  -- ^ print simplifier log (no)
+            | IBPths  -- ^ print thesis development (no)
+            | IBOnto  -- ^ use ontological reduction (no)
+            | IBUnfl  -- ^ general unfolding (on)
+            | IBUnfs  -- ^ general unfolding of sets and functions
+            | IBUfdl  -- ^ unfold the whole low level context (yes)
+            | IBUfds  -- ^ unfold set and function conditions in low level (no)
+            | IBOnch  -- ^ enable ontological reduction for checks (off)
             deriving (Eq,Show)
 
-data InStr  = ISinit  --  init file (init.opt)
-            | ISfile  --  read file
-            | ISread  --  read library file
-            | ISlibr  --  library directory
-            | ISprdb  --  prover database
-            | ISprvr  --  current prover
+-- | An instruction name which has a string argument.
+data InStr  = ISinit  -- ^ init file (init.opt)
+            | ISfile  -- ^ read file
+            | ISread  -- ^ read library file
+            | ISlibr  -- ^ library directory
+            | ISprdb  -- ^ prover database
+            | ISprvr  -- ^ current prover
             deriving (Eq,Show)
 
+-- | An instruction name that takes an array of string arguments.
 data InPar = IPgrup   -- form a group of identifiers
            | IPscnt   -- set the context
            | IPdcnt   -- drop a section from the context
@@ -84,6 +90,7 @@ data InPar = IPgrup   -- form a group of identifiers
 
 -- Ask functions
 
+-- | `askII i d is` takes the first element of `is` that has name `i` and argument `d`.
 askII :: InInt -> Int -> [Instr] -> Int
 askII i d is  = head $ [ v | InInt j v <- is, i == j ] ++ [d]
 

@@ -32,7 +32,7 @@ import Data.List
 
 import Debug.Trace
 
--- Parser state
+-- | Parser state
 data State st = State {
   stUser  :: st,
   stInput :: [Token],

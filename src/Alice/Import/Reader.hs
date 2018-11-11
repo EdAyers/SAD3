@@ -51,9 +51,18 @@ instructionFile = after (optLL1 [] $ chainLL1 instr) eof
 
 -- Reader loop
 
+{-| `readText lb ts` takes a library directory and an accumulator of `Text` `ts`. Read docs for `reader` to see how this works. -}
 readText :: String -> [Text] -> Output [Text]
 readText pathToLibrary = reader pathToLibrary [] [State initFS noTokens noPos]
 
+{-| 
+`reader lb fs ss ts` runs a parser, assuming that the deepest element of `ts` is an instruction to load a library or a file.
+The reader will recursively parse files.
+      - `lb :: String` is a library directory.
+      - `fs :: [String]` are the full paths of files that have already been parsed.
+      - `ss :: [State FState]` is a stack of parser states to track the parser as it follows file reading instructions.
+      - `ts : [Text]` is an accumulator of `Text` objects. 
+-}
 reader :: String -> [String] -> [State FState] -> [Text] -> Output [Text]
 
 reader _ _ _ [TI (InStr ISread file)] | isInfixOf ".." file =
@@ -94,22 +103,17 @@ reader _ _ _ [] = return []
 
 
 
--- launch a parser in the IO monad
+-- | launch a parser in the IO monad
 launchParser :: Parser st a -> State st -> Output (a, State st)
 launchParser parser state =
   case runP parser state of
     Error err -> throwE (show err, errorPos err)
     Ok [PR a st] -> return (a, st)
 
-
-
 -- Service stuff
 
 die :: String -> String -> IO a
 die fileName msg = exitFailure
-
-
-
 
 parse :: String -> ExceptT (String, SourcePos) IO [Text]
 parse fileName = do

@@ -1,5 +1,5 @@
 module Alice.Data.Tag where
-
+{- Tags are extralogical information that we may attach to Formulae -}
 data Tag =
   Dig | DigMultiSubject | DigMultiPairwise | HeadTerm | 
   InductionHypothesis | CaseHypothesis | EqualityChain |

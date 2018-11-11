@@ -124,7 +124,7 @@ decode s (t:ts) p d = dec s
 -- Symbolic names
 
 symChars :: [Char]
-symChars = "`~!@$%^&*()-+=[]{}:'\"<>/?\\|;,"
+symChars = "`~!@$%^&*()-+=[]{}:'\"<>/?\\|;," ++ "∈∪∩∉⋂≠"
 
 symEncode :: String -> String
 symEncode = concatMap chc
@@ -139,6 +139,12 @@ symEncode = concatMap chc
     chc '<' = "ls" ; chc '>'  = "gt" ; chc '/' = "sl"
     chc '?' = "qu" ; chc '\\' = "bs" ; chc '|' = "br"
     chc ';' = "sc" ; chc ','  = "cm" ; chc '.' = "dt"
+    -- chc '∈' = "in"
+    chc '∪' = " cup "
+    -- chc '∩' = "cap"
+    -- chc '∉' = "notin"
+    -- chc '⋂' = "bigcap"
+    -- chc '≠' = "neq"
     chc c   = ['z', c]
 
 symDecode :: String -> String

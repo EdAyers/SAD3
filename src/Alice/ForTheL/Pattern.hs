@@ -8,8 +8,8 @@ Pattern parsing and pattern state management.
 
 module Alice.ForTheL.Pattern where
 
-
 import qualified Control.Monad.State.Class as MS
+import Control.Monad
 
 import Alice.ForTheL.Base
 
@@ -18,23 +18,20 @@ import Alice.Parser.Combinators
 import Alice.Parser.Token
 import Alice.Parser.Primitives
 
-
 import Alice.Data.Formula
 
 import Data.List
 import Data.Char
-import Control.Monad
-
 
 import Debug.Trace
 -- add expressions to the state of ForTheL
 
-
+giveId :: Bool -> Int -> Formula -> Formula
 giveId p n t = t {trId = if p then n else (trId t)}
+incId :: Bool -> Int -> Int
 incId p n = if p then succ n else n
 
 addExpr :: Formula -> Formula -> Bool -> FState -> FTL Formula
-
 addExpr t@Trm {trName = 'i':'s':' ':_, trArgs = vs} f p st =
   MS.put ns >> return nf
   where
@@ -103,7 +100,6 @@ addExpr Trm {trName = "=", trArgs = [_, t]} eq@Trm {trName = "="} p st =
     -- increment id counter
     nn = ns {id_count = incId p n}
 
-
 addExpr t@Trm {trName = s, trArgs = vs} f p st =
   MS.put nn >> return nf
   where
@@ -124,13 +120,10 @@ addExpr t@Trm {trName = s, trArgs = vs} f p st =
     nn | snt  = ns {snt_expr = (tail pt,fm) : snt_expr st, id_count = incId p n}
        | True = ns {id_count = incId p n}
 
-
-
-
-
-
+       
 -- pattern extraction
 
+extractWordPattern :: FState -> Formula -> Formula -> ([Patt], Formula)
 extractWordPattern st t@Trm {trName = s, trArgs = vs} f = (pt, nf)
   where
     pt  = map get_patt ws
@@ -148,6 +141,7 @@ extractWordPattern st t@Trm {trName = s, trArgs = vs} f = (pt, nf)
     get_name []                 = ""
 
 
+extractSymbPattern :: Formula -> Formula -> ([Patt], Formula)
 extractSymbPattern t@Trm {trName = s, trArgs = vs} f = (pt, nf)
   where
     pt  = map get_patt (words s)
@@ -167,6 +161,7 @@ extractSymbPattern t@Trm {trName = s, trArgs = vs} f = (pt, nf)
 -- New patterns
 
 
+new_prd_pattern :: FTL Formula -> FTL Formula
 new_prd_pattern tvr = multi </> unary </> new_symb_pattern tvr
   where
     unary = do
@@ -182,6 +177,7 @@ new_prd_pattern tvr = multi </> unary </> new_symb_pattern tvr
     unary_verb = do (t, vs) <- pt_head wlexem tvr; return ("do "  ++ t, vs)
     multi_verb = do (t, vs) <- pt_head wlexem tvr; return ("mdo " ++ t, vs)
 
+new_ntn_pattern :: FTL Formula -> FTL (Formula, String)
 new_ntn_pattern tvr = (ntn <|> fun) </> unnamedNotion tvr
   where
     ntn = do
@@ -191,6 +187,7 @@ new_ntn_pattern tvr = (ntn <|> fun) </> unnamedNotion tvr
       the; (t, v:vs) <- pt_name wlexem tvr
       return (zEqu v $ zTrm newId ("a " ++ t) vs, trName v)
 
+unnamedNotion :: FTL Formula -> FTL (Formula, String)
 unnamedNotion tvr = (ntn <|> fun) </> (new_symb_pattern tvr >>= equ)
   where
     ntn = do
@@ -202,6 +199,7 @@ unnamedNotion tvr = (ntn <|> fun) </> (new_symb_pattern tvr >>= equ)
     equ t = do v <- hidden; return (zEqu (zVar v) t, v)
 
 
+new_symb_pattern :: FTL Formula -> FTL Formula
 new_symb_pattern tvr = left -|- right
   where
     left  = do
@@ -216,24 +214,28 @@ new_symb_pattern tvr = left -|- right
 -- pattern parsing
 
 
+pt_head :: FTL String -> FTL a -> FTL (String, [a])
 pt_head lxm tvr = do
   l <- liftM unwords $ chain lxm
   (ls, vs) <- opt ([], []) $ pt_tail lxm tvr
   return (l ++ ' ' : ls, vs)
 
 
+pt_tail :: FTL String -> FTL a -> FTL (String, [a])
 pt_tail lxm tvr = do
   v <- tvr
   (ls, vs) <- opt ([], []) $ pt_head lxm tvr
   return ("# " ++ ls, v:vs)
 
 
+pt_name :: FTL String -> FTL Formula -> FTL (String, [Formula])
 pt_name lxm tvr = do
   l <- liftM unwords $ chain lxm; n <- nam
   (ls, vs) <- opt ([], []) $ pt_head lxm tvr
   return (l ++ " . " ++ ls, n:vs)
 
 
+pt_nonm :: FTL String -> FTL Formula -> FTL (String, [Formula])
 pt_nonm lxm tvr = do
   l <- liftM unwords $ chain lxm; n <- hid
   (ls, vs) <- opt ([], []) $ pt_shot lxm tvr
@@ -247,11 +249,13 @@ pt_nonm lxm tvr = do
 
 -- In-pattern lexemes and variables
 
+wlexem :: FTL String
 wlexem  = do
   l <- wlx
   guard $ all isAlpha l
   return $ map toLower l
 
+slexem :: FTL String
 slexem  = slex -|- wlx
   where
     slex  = tokenPrim isSymb
@@ -261,6 +265,7 @@ slexem  = slex -|- wlx
             [c] -> guard (c `elem` symChars) >> return tk
             _   -> Nothing
 
+wlx :: FTL String
 wlx = failing nvr >> tokenPrim isWord
   where
     isWord t =
@@ -268,17 +273,21 @@ wlx = failing nvr >> tokenPrim isWord
       in guard (all isAlphaNum tk && ltk `notElem` keylist) >> return tk
     keylist = ["a","an","the","is","are","be"]
 
+nvr :: FTL Formula
 nvr = do
   v <- var; dvs <- getDecl; tvs <- MS.gets tvr_expr
   guard $ v `elem` dvs || any (elem v . fst) tvs
   return $ zVar v
 
+avr :: FTL Formula
 avr = do
   v <- var; guard $ null $ tail $ tail v
   return $ zVar v
 
+nam :: FTL Formula
 nam = do
   n <- liftM (const Top) nvr </> avr
   guard $ isVar n ; return n
 
+hid :: FTL Formula
 hid = liftM zVar hidden

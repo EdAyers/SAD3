@@ -60,6 +60,7 @@ word = satisfy $ \tk -> all isAlpha tk
 
 ---- check if the current token is equal to s after mapping to lowercase
 {-# INLINE wd_token #-}
+-- | Parse the given word.
 wd_token :: String -> Parser st ()
 wd_token s = void $ satisfy $ \tk -> s == map toLower tk
 

@@ -38,6 +38,7 @@ noPos = SourcePos "" 0 0 0 0
 fileOnlyPos :: String -> SourcePos
 fileOnlyPos file = SourcePos file 0 0 0 0
 
+-- | Return the SourcePos corresponding to the start of the given file.
 filePos :: String -> SourcePos
 filePos file = SourcePos file 1 1 1 0
 
